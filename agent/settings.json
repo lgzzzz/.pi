@@ -7,6 +7,6 @@
   "compaction": {
     "enabled": false
   },
-  "defaultProvider": "minimax-cn",
-  "defaultModel": "MiniMax-M2.7"
+  "defaultProvider": "deepseek",
+  "defaultModel": "deepseek-v4-flash"
 }
