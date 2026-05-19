@@ -3,3 +3,5 @@ agent/sessions
 agent/bin
 .idea
 agent/git
+agent/extensions/dist
+agent/extensions/node_modules
