@@ -1,5 +1,6 @@
 {
   "tui.input.newLine": "shift+tab",
   "app.thinking.cycle": "ctrl+e",
-  "app.model.cycleForward": []
+  "app.model.cycleForward": [],
+  "app.model.cycleBackward": []
 }
