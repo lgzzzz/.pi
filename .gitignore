@@ -5,3 +5,4 @@ agent/bin
 agent/git
 agent/extensions/dist
 agent/extensions/node_modules
+node_modules
