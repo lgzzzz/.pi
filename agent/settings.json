@@ -1,6 +1,6 @@
 {
-  "lastChangelogVersion": "0.75.3",
-  "defaultThinkingLevel": "high",
+  "lastChangelogVersion": "0.75.5",
+  "defaultThinkingLevel": "xhigh",
   "showHardwareCursor": false,
   "quietStartup": true,
   "hideThinkingBlock": false,
