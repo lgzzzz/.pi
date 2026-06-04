@@ -200,7 +200,7 @@ export default function (pi: ExtensionAPI) {
             : false;
           if (costCNY > 0 || usingSubscription) {
             const subLabel = usingSubscription ? " (sub)" : "";
-            statsParts.push(`¥${costCNY.toFixed(4)}${subLabel}`);
+            statsParts.push(`¥${costCNY.toFixed(2)}${subLabel}`);
           }
 
           // 带自动压缩指示器的上下文百分比
