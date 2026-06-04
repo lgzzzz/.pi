@@ -48,7 +48,7 @@ export default function (pi: ExtensionAPI) {
 
 		const elapsedSeconds = elapsedMs / 1000;
 		const tokensPerSecond = output / elapsedSeconds;
-		const message = `TPS ${tokensPerSecond.toFixed(1)} tok/s, ${elapsedSeconds.toFixed(1)}s`;
+		const message = `${tokensPerSecond.toFixed(1)} tok/s, ${elapsedSeconds.toFixed(1)}s`;
 		ctx.ui.notify(message, "info");
 	});
 }
