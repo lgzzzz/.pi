@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.75.5",
+  "lastChangelogVersion": "0.78.0"
   "defaultThinkingLevel": "xhigh",
   "showHardwareCursor": false,
   "quietStartup": true,
@@ -8,5 +8,5 @@
     "enabled": false
   },
   "defaultProvider": "deepseek",
-  "defaultModel": "deepseek-v4-flash"
+  "defaultModel": "deepseek-v4-pro"
 }
