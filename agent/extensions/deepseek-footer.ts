@@ -13,7 +13,7 @@
  * - 输入/输出/缓存读取/写入 token 统计
  * - 费用（转换为人民币）
  * - 缓存命中率
- * - 上下文使用百分比
+ * - 上下文使用量（token 数）
  * - 带思维级别的模型名称
  * - 多提供商指示器
  * - 自动压缩指示器
@@ -111,11 +111,12 @@ export default function (pi: ExtensionAPI) {
           const contextUsage = getContextUsage?.();
           const contextWindow =
             contextUsage?.contextWindow ?? currentModel?.contextWindow ?? 0;
-          const contextPercentValue = contextUsage?.percent ?? 0;
-          const contextPercent =
-            contextUsage?.percent !== null
-              ? contextPercentValue.toFixed(1)
-              : "?";
+          const contextTokens = contextUsage?.tokens ?? null;
+          // 用 tokens 数（而非百分比）来判断是否接近上限
+          const contextRatio =
+            contextTokens !== null && contextWindow > 0
+              ? (contextTokens / contextWindow) * 100
+              : 0;
 
           // ---- 工作目录 / 分支 / 会话名称 ----
           let pwdLabel = formatCwdForFooter(
@@ -154,16 +155,16 @@ export default function (pi: ExtensionAPI) {
             statsParts.push(`¥${costCNY.toFixed(2)}${subLabel}`);
           }
 
-          // 带自动压缩指示器的上下文百分比
+          // 直接显示当前上下文 token 数，而非百分比
           const contextDisplay =
-            contextPercent === "?"
+            contextTokens === null
               ? `?/${formatTokens(contextWindow)}`
-              : `${contextPercent}%/${formatTokens(contextWindow)}`;
+              : `${formatTokens(contextTokens)}/${formatTokens(contextWindow)}`;
 
           let contextStr: string;
-          if (contextPercentValue > 90) {
+          if (contextRatio > 90) {
             contextStr = theme.fg("error", contextDisplay);
-          } else if (contextPercentValue > 70) {
+          } else if (contextRatio > 70) {
             contextStr = theme.fg("warning", contextDisplay);
           } else {
             contextStr = contextDisplay;
