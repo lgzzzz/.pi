@@ -12,93 +12,16 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-
-const USAGE_FILE = ".pi/token-usage.json";
-
-// ---------------------------------------------------------------------------
-// Data types
-// ---------------------------------------------------------------------------
-
-/** Token consumption for a single model within a session */
-interface ModelTokenUsage {
-  /** Input tokens NOT served from cache (cache miss) */
-  uncachedInputTokens: number;
-  /** Input tokens served from cache (cache hit) */
-  cachedInputTokens: number;
-  /** Total output tokens generated */
-  outputTokens: number;
-}
-
-/**
- * Per-session entry: keyed by "provider/modelId", values are cumulative
- * token counts for that model within this session.
- */
-type SessionEntry = Record<string, ModelTokenUsage>;
-
-/** Top-level store: sessionId → SessionEntry */
-type TokenUsageStore = Record<string, SessionEntry>;
-
-// ---------------------------------------------------------------------------
-// DeepSeek pricing (¥ / 1M tokens)
-// ---------------------------------------------------------------------------
-
-interface DeepSeekPricing {
-  /** ¥ / 1M tokens — cache-miss input */
-  cacheMiss: number;
-  /** ¥ / 1M tokens — cache-hit input */
-  cacheHit: number;
-  /** ¥ / 1M tokens — output */
-  output: number;
-}
-
-const DEEPSEEK_PRICING: Record<string, DeepSeekPricing> = {
-  "deepseek-v4-flash": { cacheMiss: 1, cacheHit: 0.02, output: 2 },
-  "deepseek-v4-pro":  { cacheMiss: 3, cacheHit: 0.025, output: 6 },
-};
-
-/** Fallback pricing for unknown DeepSeek models */
-const FALLBACK_PRICING: DeepSeekPricing = {
-  cacheMiss: 2, cacheHit: 0.1, output: 4,
-};
-
-/** Format token count for compact display (matching deepseek-footer style) */
-function formatTokens(count: number): string {
-  if (count < 1000) return count.toString();
-  if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
-  if (count < 1000000) return `${Math.round(count / 1000)}k`;
-  if (count < 10000000) return `${(count / 1000000).toFixed(1)}M`;
-  return `${Math.round(count / 1000000)}M`;
-}
-
-// ---------------------------------------------------------------------------
-// File helpers
-// ---------------------------------------------------------------------------
-
-function loadStore(filePath: string): TokenUsageStore {
-  try {
-    if (!existsSync(filePath)) return {};
-    const raw = readFileSync(filePath, "utf-8").trim();
-    if (!raw) return {};
-    return JSON.parse(raw) as TokenUsageStore;
-  } catch {
-    return {};
-  }
-}
-
-function saveStore(filePath: string, store: TokenUsageStore): void {
-  const dir = dirname(filePath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-  writeFileSync(filePath, JSON.stringify(store, null, 2) + "\n", "utf-8");
-}
-
-/** Build a "provider/modelId" key */
-function modelKey(provider: string, modelId: string): string {
-  return `${provider}/${modelId}`;
-}
+import { resolve } from "node:path";
+import { DEEPSEEK_PRICING, FALLBACK_DEEPSEEK_PRICING, formatTokens } from "./utils/tokens.js";
+import {
+  modelKey,
+  loadTokenUsageStore,
+  saveTokenUsageStore,
+  TOKEN_USAGE_FILE as USAGE_FILE,
+  type ModelTokenUsage,
+  type SessionEntry,
+} from "./utils/token-storage.js";
 
 // ---------------------------------------------------------------------------
 // Extension
@@ -118,7 +41,7 @@ export default function (pi: ExtensionAPI) {
     usageFilePath = resolve(ctx.cwd, USAGE_FILE);
     currentSessionId = sessionId;
 
-    const store = loadStore(usageFilePath);
+    const store = loadTokenUsageStore(usageFilePath);
     currentEntry = store[sessionId] ? { ...store[sessionId] } : {};
   });
 
@@ -156,9 +79,9 @@ export default function (pi: ExtensionAPI) {
     currentEntry[key].outputTokens += output;
 
     // Persist immediately
-    const store = loadStore(usageFilePath);
+    const store = loadTokenUsageStore(usageFilePath);
     store[currentSessionId] = currentEntry;
-    saveStore(usageFilePath, store);
+    saveTokenUsageStore(usageFilePath, store);
   });
 
   // ------------------------------------------------------------------
@@ -166,9 +89,9 @@ export default function (pi: ExtensionAPI) {
   // ------------------------------------------------------------------
   pi.on("session_shutdown", async () => {
     if (!currentSessionId || !usageFilePath) return;
-    const store = loadStore(usageFilePath);
+    const store = loadTokenUsageStore(usageFilePath);
     store[currentSessionId] = currentEntry;
-    saveStore(usageFilePath, store);
+    saveTokenUsageStore(usageFilePath, store);
   });
 
   // ------------------------------------------------------------------
@@ -178,7 +101,7 @@ export default function (pi: ExtensionAPI) {
     description: "Show DeepSeek token consumption summary with RMB cost",
     handler: async (_args, ctx) => {
       const filePath = resolve(ctx.cwd, USAGE_FILE);
-      const store = loadStore(filePath);
+      const store = loadTokenUsageStore(filePath);
 
       // Aggregate all DeepSeek models across all sessions
       const deepseekModels: Map<string, ModelTokenUsage & { sessionCount: number }> = new Map();
@@ -216,7 +139,7 @@ export default function (pi: ExtensionAPI) {
 
       for (const [key, usage] of deepseekModels.entries()) {
         const modelId = key.slice("deepseek/".length);
-        const pricing = DEEPSEEK_PRICING[modelId] ?? FALLBACK_PRICING;
+        const pricing = DEEPSEEK_PRICING[modelId] ?? FALLBACK_DEEPSEEK_PRICING;
 
         const totalInput = usage.uncachedInputTokens+usage.cachedInputTokens;
         const missCost = (usage.uncachedInputTokens / 1_000_000) * pricing.cacheMiss;
@@ -270,7 +193,7 @@ export default function (pi: ExtensionAPI) {
       currentEntry = {};
 
       // Clear persisted store
-      saveStore(filePath, {});
+      saveTokenUsageStore(filePath, {});
 
       ctx.ui.notify("Token statistics have been reset.", "info");
     },

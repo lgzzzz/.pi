@@ -21,46 +21,10 @@
  */
 
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ReadonlyFooterDataProvider, Theme } from "@earendil-works/pi-coding-agent";
+import type {ExtensionAPI, ExtensionContext, ReadonlyFooterDataProvider, Theme} from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, type TUI } from "@earendil-works/pi-tui";
 import { isAbsolute, relative, resolve, sep } from "node:path";
-
-/** DeepSeek 模型定价（¥ 人民币，每 1M token） */
-interface DeepSeekPricing {
-  /** ¥ / 1M token — 缓存命中输入 */
-  cacheHit: number;
-  /** ¥ / 1M token — 缓存未命中输入 */
-  cacheMiss: number;
-  /** ¥ / 1M token — 输出 */
-  output: number;
-}
-
-const DEEPSEEK_PRICING: Record<string, DeepSeekPricing> = {
-  "deepseek-v4-flash": { cacheHit: 0.02, cacheMiss: 1, output: 2 },
-  "deepseek-v4-pro":  { cacheHit: 0.025, cacheMiss: 3, output: 6 },
-};
-
-/** 未知 DeepSeek 模型的回退定价（保守估算） */
-const FALLBACK_PRICING: DeepSeekPricing = {
-  cacheHit: 0.1, cacheMiss: 2, output: 4,
-};
-
-/**
- * 根据累积的 token 数量计算总费用（¥ 人民币）。
- * 使用模型每 1M token 定价；对于不在价格表中的模型回退到保守估算。
- */
-function computeCostCNY(
-  modelId: string | undefined,
-  input: number,
-  output: number,
-  cacheRead: number,
-): number {
-  const pricing = (modelId && DEEPSEEK_PRICING[modelId]) || FALLBACK_PRICING;
-  const hitCost  = (cacheRead / 1_000_000) * pricing.cacheHit;
-  const missCost = (input     / 1_000_000) * pricing.cacheMiss;
-  const outCost  = (output    / 1_000_000) * pricing.output;
-  return hitCost + missCost + outCost;
-}
+import { computeCostCNY, formatTokens } from "./utils/tokens.js";
 
 /** 清理文本以在单行状态中显示（与原生页脚一致） */
 function sanitizeStatusText(text: string): string {
@@ -68,15 +32,6 @@ function sanitizeStatusText(text: string): string {
     .replace(/[\r\n\t]/g, " ")
     .replace(/ +/g, " ")
     .trim();
-}
-
-/** 格式化 token 数量用于紧凑的页脚显示（与原生页脚一致） */
-function formatTokens(count: number): string {
-  if (count < 1000) return count.toString();
-  if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
-  if (count < 1000000) return `${Math.round(count / 1000)}k`;
-  if (count < 10000000) return `${(count / 1000000).toFixed(1)}M`;
-  return `${Math.round(count / 1000000)}M`;
 }
 
 /** 将工作目录格式化为带 ~ 的主目录（与原生页脚一致） */
@@ -103,15 +58,14 @@ export default function (pi: ExtensionAPI) {
   // 由事件更新的可变状态
   let currentModel: any = undefined;
   let currentThinkingLevel = "off";
-  let autoCompactEnabled = true;
 
   // 从扩展上下文中捕获（同一对象在会话期间持续存在）
-  let capturedSessionManager: any = undefined;
+  let capturedSessionManager:  any = undefined;
   let capturedModelRegistry: any = undefined;
   let capturedGetContextUsage: (() => any) | undefined;
 
   /** 设置自定义页脚。ctx 必须来自有效的扩展事件处理器。 */
-  function setCustomFooter(ctx: any) {
+  function setCustomFooter(ctx: ExtensionContext) {
     capturedSessionManager = ctx.sessionManager;
     capturedModelRegistry = ctx.modelRegistry;
     capturedGetContextUsage = () => ctx.getContextUsage();
@@ -135,15 +89,13 @@ export default function (pi: ExtensionAPI) {
           let totalInput = 0;
           let totalOutput = 0;
           let totalCacheRead = 0;
-          let totalCacheWrite = 0;
-
           for (const entry of sessionMgr.getEntries()) {
             if (entry.type === "message" && entry.message.role === "assistant") {
               const msg = entry.message as AssistantMessage;
               totalInput += msg.usage.input;
               totalOutput += msg.usage.output;
               totalCacheRead += msg.usage.cacheRead;
-              totalCacheWrite += msg.usage.cacheWrite;
+
             }
           }
 
@@ -185,10 +137,9 @@ export default function (pi: ExtensionAPI) {
           if (totalInput) statsParts.push(`↑${formatTokens(totalInput)}`);
           if (totalOutput) statsParts.push(`↓${formatTokens(totalOutput)}`);
           if (totalCacheRead) statsParts.push(`R${formatTokens(totalCacheRead)}`);
-          if (totalCacheWrite) statsParts.push(`W${formatTokens(totalCacheWrite)}`);
 
           // 缓存命中率
-          const totalPromptTokens = totalInput + totalCacheRead + totalCacheWrite;
+          const totalPromptTokens = totalInput + totalCacheRead;
           if (totalCacheRead > 0 && totalPromptTokens > 0) {
             const hitRate = (totalCacheRead / totalPromptTokens) * 100;
             statsParts.push(`${hitRate.toFixed(1)}%`);
@@ -310,7 +261,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   /** 根据当前活动模型在自定义页脚和内置页脚之间切换 */
-  function maybeSwapFooter(ctx: any) {
+  function maybeSwapFooter(ctx: ExtensionContext) {
     if (isDeepSeekModel(ctx.model?.provider)) {
       setCustomFooter(ctx);
     } else {
