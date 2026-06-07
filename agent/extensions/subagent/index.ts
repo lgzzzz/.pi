@@ -15,7 +15,6 @@
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
-import * as path from "node:path";
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import type { Message } from "@earendil-works/pi-ai";
 import { StringEnum } from "@earendil-works/pi-ai";
@@ -26,7 +25,7 @@ import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.js";
 
 // ---- Shared utilities ----
 import { aggregateUsage, formatUsageStats, type UsageStats } from "../utils/tokens.js";
-import { loadTokenUsageStore, saveTokenUsageStore, modelKey, TOKEN_USAGE_FILE } from "../utils/token-storage.js";
+
 import {
   getFinalOutput,
   getDisplayItems,
@@ -155,7 +154,7 @@ async function runSingleAgent(
     };
   }
 
-  const args: string[] = ["--mode", "json", "-p", "--no-session"];
+  const args: string[] = ["--mode", "json", "-p"];
   if (agent.model) args.push("--model", agent.model);
   if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
 
@@ -346,10 +345,6 @@ export default function (pi: ExtensionAPI) {
       const agents = discovery.agents;
       const confirmProjectAgents = params.confirmProjectAgents ?? true;
 
-      // Capture session ID for token tracking
-      const sessionId = ctx.sessionManager?.getSessionId?.() ?? "";
-      const usageFilePath = path.resolve(ctx.cwd, TOKEN_USAGE_FILE);
-
       const hasChain = (params.chain?.length ?? 0) > 0;
       const hasTasks = (params.tasks?.length ?? 0) > 0;
       const hasSingle = Boolean(params.agent && params.task);
@@ -363,29 +358,6 @@ export default function (pi: ExtensionAPI) {
           projectAgentsDir: discovery.projectAgentsDir,
           results,
         });
-
-      /** Persist subagent token usage to token-tracker's data file */
-      const persistTokenUsage = (results: SingleResult[]) => {
-        if (!sessionId || !usageFilePath) return;
-        try {
-          const store = loadTokenUsageStore(usageFilePath);
-
-          if (!store[sessionId]) store[sessionId] = {};
-
-          for (const r of results) {
-            if (!r.model) continue;
-            const key = modelKey("deepseek", r.model);
-            if (!store[sessionId][key]) {
-              store[sessionId][key] = { uncachedInputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
-            }
-            store[sessionId][key].uncachedInputTokens += r.usage.input || 0;
-            store[sessionId][key].cachedInputTokens += r.usage.cacheRead || 0;
-            store[sessionId][key].outputTokens += r.usage.output || 0;
-          }
-
-          saveTokenUsageStore(usageFilePath, store);
-        } catch { /* best-effort tracking */ }
-      };
 
       if (modeCount !== 1) {
         const available = agents.map((a) => `${a.name} (${a.source})`).join(", ") || "none";
@@ -461,7 +433,6 @@ export default function (pi: ExtensionAPI) {
 
           if (isFailedResult(result)) {
             const errorMsg = getResultOutput(result);
-            persistTokenUsage(results);
             return {
               content: [{ type: "text", text: `Chain stopped at step ${i + 1} (${step.agent}): ${errorMsg}` }],
               details: makeDetails("chain")(results),
@@ -470,7 +441,6 @@ export default function (pi: ExtensionAPI) {
           }
           previousOutput = getFinalOutput(result.messages);
         }
-        persistTokenUsage(results);
         return {
           content: [{ type: "text", text: getFinalOutput(results[results.length - 1].messages) || "(no output)" }],
           details: makeDetails("chain")(results),
@@ -545,7 +515,6 @@ export default function (pi: ExtensionAPI) {
           const status = isFailedResult(r) ? "failed" : "completed";
           return `[${r.agent}] ${status}: ${preview || "(no output)"}`;
         });
-        persistTokenUsage(results);
         return {
           content: [
             {
@@ -571,14 +540,12 @@ export default function (pi: ExtensionAPI) {
         );
         if (isFailedResult(result)) {
           const errorMsg = getResultOutput(result);
-          persistTokenUsage([result]);
           return {
             content: [{ type: "text", text: `Agent ${result.stopReason || "failed"}: ${errorMsg}` }],
             details: makeDetails("single")([result]),
             isError: true,
           };
         }
-        persistTokenUsage([result]);
         return {
           content: [{ type: "text", text: getFinalOutput(result.messages) || "(no output)" }],
           details: makeDetails("single")([result]),
@@ -603,8 +570,7 @@ export default function (pi: ExtensionAPI) {
         const maxSteps = expanded ? args.chain.length : Math.min(args.chain.length, 3);
         for (let i = 0; i < maxSteps; i++) {
           const step = args.chain[i];
-          const cleanTask = step.task.replace(/\{previous\}/g, "").trim();
-          const displayTask = expanded ? cleanTask : (cleanTask.length > 40 ? `${cleanTask.slice(0, 40)}...` : cleanTask);
+          const displayTask = expanded ? step.task : (step.task.length > 40 ? `${step.task.slice(0, 40)}...` : step.task);
           text +=
             "\n  " +
             theme.fg("muted", `${i + 1}.`) +
@@ -613,8 +579,6 @@ export default function (pi: ExtensionAPI) {
             theme.fg("dim", ` ${displayTask}`);
         }
         if (!expanded && args.chain.length > 3) text += `\n  ${theme.fg("muted", `... +${args.chain.length - 3} more`)}`;
-        if (!expanded) text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
-        else text += `\n${theme.fg("muted", "(Ctrl+O to collapse)")}`;
         return new Text(text, 0, 0);
       }
       if (args.tasks && args.tasks.length > 0) {
@@ -641,8 +605,6 @@ export default function (pi: ExtensionAPI) {
         theme.fg("accent", agentName) +
         theme.fg("muted", ` [${scope}]`);
       text += `\n  ${theme.fg("dim", preview)}`;
-      if (!expanded) text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
-      else text += `\n${theme.fg("muted", "(Ctrl+O to collapse)")}`;
       return new Text(text, 0, 0);
     },
 
@@ -685,9 +647,6 @@ export default function (pi: ExtensionAPI) {
           container.addChild(new Text(header, 0, 0));
           if (isError && r.errorMessage)
             container.addChild(new Text(theme.fg("error", `Error: ${r.errorMessage}`), 0, 0));
-          container.addChild(new Spacer(1));
-          container.addChild(new Text(theme.fg("muted", "─── Task ───"), 0, 0));
-          container.addChild(new Text(theme.fg("dim", r.task), 0, 0));
           container.addChild(new Spacer(1));
           container.addChild(new Text(theme.fg("muted", "─── Output ───"), 0, 0));
           if (displayItems.length === 0 && !finalOutput) {

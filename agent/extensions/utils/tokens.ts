@@ -1,7 +1,7 @@
 /**
  * Token 格式化、定价与用量统计工具
  *
- * 提取自 deepseek-utils.ts，为 subagent、token-tracker、deepseek-footer 提供：
+ * 提取自 deepseek-utils.ts，为 subagent、deepseek-footer 提供：
  * - Token 数量紧凑格式化
  * - DeepSeek 模型定价（¥ 人民币 / 1M token）
  * - 费用计算
