@@ -44,6 +44,9 @@ import { ToolCallComponent } from "./ToolCallComponent.js";
 import { HistoryViewer } from "./HistoryViewer.js";
 import { parseSGRMouseScroll } from "./mouse.js";
 import { loadConfig } from "./config.js";
+import { buildFooterLines } from "../custom-footer/buildFooterLines.js";
+import { getTheme } from "./theme.js";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 // ---------------------------------------------------------------------------
 // 类型别名
@@ -84,8 +87,22 @@ export default function (pi: ExtensionAPI) {
     /** 当前正在执行的工具名称（用于 working 指示器）。 */
     let currentToolName: string = "";
 
+    /** 当前扩展上下文（在 agent_start 时捕获，供 footer 渲染使用）。 */
+    let currentCtx: ExtensionContext | null = null;
+
     // 缓存的 markdown 主题 — 在所有组件中复用
     const markdownTheme = getMarkdownTheme();
+
+    // DeepSeek v4 pro 人民币定价（每百万 tokens）
+    const PRICING = {
+        inputUncached: 2,
+        inputCached: 0.025,
+        output: 6,
+    } as const;
+
+    function calcCost(tokens: number, pricePerMillion: number): number {
+        return (tokens / 1_000_000) * pricePerMillion;
+    }
 
     // -- 工具函数 ------------------------------------------------------------
 
@@ -133,9 +150,82 @@ export default function (pi: ExtensionAPI) {
         // 如果已经打开，不要重复打开
         if (viewerOpen) return;
         viewerOpen = true;
+
+        /** 构建自定义 footer 行（在渲染时动态计算）。 */
+        const getFooterLines = (width: number) => {
+            const c = currentCtx;
+            if (!c) return [] as string[];
+
+            // 聚合所有 assistant 消息的 usage
+            let totalInput = 0;
+            let totalOutput = 0;
+            let totalCacheRead = 0;
+            let totalCacheWrite = 0;
+            for (const entry of c.sessionManager.getEntries()) {
+                if (
+                    entry.type === "message" &&
+                    entry.message.role === "assistant"
+                ) {
+                    const usage = entry.message.usage;
+                    totalInput += usage.input;
+                    totalOutput += usage.output;
+                    totalCacheRead += usage.cacheRead;
+                    totalCacheWrite += usage.cacheWrite;
+                }
+            }
+
+            const costRmb =
+                calcCost(totalInput, PRICING.inputUncached) +
+                calcCost(totalCacheRead, PRICING.inputCached) +
+                calcCost(totalOutput, PRICING.output);
+
+            const contextUsage = c.getContextUsage();
+            const contextWindow =
+                contextUsage?.contextWindow ??
+                c.model?.contextWindow ??
+                0;
+            const contextTokens = contextUsage?.tokens ?? null;
+
+            const model = c.model;
+            const modelName = model?.id ?? "no-model";
+            const provider = model?.provider;
+            const providerCount = 1;
+            const modelReasoning = model?.reasoning ?? false;
+            const thinkingLevel = pi.getThinkingLevel();
+            const usingSubscription = model
+                ? c.modelRegistry?.isUsingOAuth?.(model) ?? false
+                : false;
+            const sessionName =
+                c.sessionManager.getSessionName() ?? undefined;
+
+            const theme = getTheme();
+            return buildFooterLines({
+                width,
+                cwd: c.cwd,
+                home: process.env.HOME || process.env.USERPROFILE,
+                gitBranch: undefined,
+                sessionName,
+                totalInput,
+                totalOutput,
+                totalCacheRead,
+                totalCacheWrite,
+                costRmb,
+                usingSubscription,
+                contextTokens,
+                contextWindow,
+                modelName,
+                provider,
+                providerCount,
+                modelReasoning,
+                thinkingLevel,
+                fg: (color, text) => theme.fg(color, text),
+            });
+        };
+
         const viewer = new HistoryViewer(
             () => messageComponents,
             getWorkingStatus,
+            getFooterLines,
         );
 
         ctx.ui.custom(
@@ -203,6 +293,7 @@ export default function (pi: ExtensionAPI) {
     // 当新的代理轮次开始时重置状态，标记 working，并根据配置决定是否自动打开历史查看器
     pi.on("agent_start", async (_event, ctx) => {
         resetTurnState(ctx.cwd);
+        currentCtx = ctx;
         isWorking = true;
         currentToolName = "";
         requestRender();

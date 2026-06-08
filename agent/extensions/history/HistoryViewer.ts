@@ -41,9 +41,13 @@ export type MessageListProvider = () => Component[];
 /** 返回当前 working 状态的函数。 */
 export type WorkingStatusProvider = () => { isWorking: boolean; currentTool: string };
 
+/** 返回 footer 行数组（动态高度）的函数，接收当前渲染宽度。 */
+export type FooterLinesProvider = (width: number) => string[];
+
 export class HistoryViewer {
     private readonly getMessages: MessageListProvider;
     private readonly getWorkingStatus: WorkingStatusProvider;
+    private readonly getFooterLines: FooterLinesProvider | undefined;
     private tui: TUI | null = null;
     private scrollOffset: number = 0;
     private renderWidth: number = 0;
@@ -71,9 +75,11 @@ export class HistoryViewer {
     constructor(
         getMessages: MessageListProvider,
         getWorkingStatus: WorkingStatusProvider,
+        getFooterLines?: FooterLinesProvider,
     ) {
         this.getMessages = getMessages;
         this.getWorkingStatus = getWorkingStatus;
+        this.getFooterLines = getFooterLines;
     }
 
     /**
@@ -211,13 +217,30 @@ export class HistoryViewer {
     }
 
     /**
+     * 计算 footer 组的总行数。
+     * = working 指示器行（如果 active）+ 自定义 footer 行。
+     */
+    private getFooterHeight(): number {
+        const status = this.getWorkingStatus();
+        let height = 0;
+        if (status.isWorking) height += 1;
+        if (this.getFooterLines) {
+            const w = this.renderWidth > 0 ? this.renderWidth : 80;
+            height += this.getFooterLines(w).length;
+        }
+        return height;
+    }
+
+    /**
      * 计算消息显示区域的最大滚动偏移量。
-     * Footer 行固定在视窗最后一行，分隔空行固定在 footer 之上，
-     * 因此消息区域的高度为 viewportHeight - 2。
+     * Footer 区域固定在视窗底部，消息区域在 footer 之上
+     * 由一个空行分隔。
      */
     private computeMaxScroll(): number {
         if (this.viewportHeight <= 0) return 0;
-        const messageAreaHeight = Math.max(1, this.viewportHeight - 2);
+        const footerHeight = this.getFooterHeight();
+        const reservedRows = footerHeight > 0 ? footerHeight + 1 : 0; // +1 for separator
+        const messageAreaHeight = Math.max(1, this.viewportHeight - reservedRows);
         return Math.max(0, this.totalContentLines - messageAreaHeight);
     }
 
@@ -346,9 +369,10 @@ export class HistoryViewer {
      * 组合成完整视窗输出。
      *
      * 布局（从上到下）：
-     *   - 消息显示区域（可滚动，高度 = viewportHeight - 2）
+     *   - 消息显示区域（可滚动，高度动态调整）
      *   - 分隔空行（消息显示组件与 footer 之间）
-     *   - Footer 行（固定在视窗最后一行）
+     *   - Working 指示器行（仅在 agent 工作时显示）
+     *   - 自定义 footer 行（N 行，固定）
      *
      * @param width          终端宽度（列数）
      * @param viewportHeight 动态视窗高度（行数），从 tui.terminal.rows 获取
@@ -363,8 +387,11 @@ export class HistoryViewer {
         // 将所有消息渲染为行数组（会更新 totalContentLines）
         const messageLines = this.renderAllMessages(width);
 
-        // 消息显示区域高度（扣除分隔空行和 footer 行）
-        const messageAreaHeight = Math.max(1, viewportHeight - 2);
+        // 计算 footer 区域高度（working 指示器 + 自定义 footer）
+        const footerHeight = this.getFooterHeight();
+        // 消息区域与 footer 之间保留一个空行分隔
+        const reservedRows = footerHeight > 0 ? footerHeight + 1 : 0;
+        const messageAreaHeight = Math.max(1, viewportHeight - reservedRows);
 
         // 自动滚动：如果固定在底部，跟随最新内容
         // 如果已不在底部，仅将偏移量限制在有效范围内
@@ -385,7 +412,7 @@ export class HistoryViewer {
             this.scrollOffset + messageAreaHeight,
         );
 
-        // 构建最终输出：消息区域 + 分隔空行 + footer
+        // 构建最终输出：消息区域 + 分隔空行 + footer 组
         const output: string[] = [];
         output.push(...visibleMessageLines);
 
@@ -395,14 +422,19 @@ export class HistoryViewer {
         }
 
         // 消息显示组件与 footer 之间的分隔空行
-        output.push("");
+        if (footerHeight > 0) {
+            output.push("");
+        }
 
-        // Footer 组件（固定在视窗最后一行）
+        // Working 指示器行
         const status = this.getWorkingStatus();
         if (status.isWorking) {
             output.push(this.buildWorkingLine(status));
-        } else {
-            output.push("");
+        }
+
+        // 自定义 footer 行
+        if (this.getFooterLines) {
+            output.push(...this.getFooterLines(width));
         }
 
         // 确保恰好 viewportHeight 行，防止 overlay 下方内容透出
