@@ -15,20 +15,23 @@ import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
  * 优先使用当前脚本路径（如果可用），其次使用 execPath 直接调用（如果是 Bun/Node 运行），
  * 最后回退到 shell 中的 "pi" 命令。
  */
-export function getPiInvocation(args: string[]): { command: string; args: string[] } {
-  const currentScript = process.argv[1];
-  const isBunVirtualScript = currentScript?.startsWith("/$bunfs/root/");
-  if (currentScript && !isBunVirtualScript && fs.existsSync(currentScript)) {
-    return { command: process.execPath, args: [currentScript, ...args] };
-  }
+export function getPiInvocation(args: string[]): {
+    command: string;
+    args: string[];
+} {
+    const currentScript = process.argv[1];
+    const isBunVirtualScript = currentScript?.startsWith("/$bunfs/root/");
+    if (currentScript && !isBunVirtualScript && fs.existsSync(currentScript)) {
+        return { command: process.execPath, args: [currentScript, ...args] };
+    }
 
-  const execName = path.basename(process.execPath).toLowerCase();
-  const isGenericRuntime = /^(node|bun)(\.exe)?$/.test(execName);
-  if (!isGenericRuntime) {
-    return { command: process.execPath, args };
-  }
+    const execName = path.basename(process.execPath).toLowerCase();
+    const isGenericRuntime = /^(node|bun)(\.exe)?$/.test(execName);
+    if (!isGenericRuntime) {
+        return { command: process.execPath, args };
+    }
 
-  return { command: "pi", args };
+    return { command: "pi", args };
 }
 
 /**
@@ -36,14 +39,19 @@ export function getPiInvocation(args: string[]): { command: string; args: string
  * 调用者负责在最终清理临时目录和文件。
  */
 export async function writePromptToTempFile(
-  agentName: string,
-  prompt: string,
+    agentName: string,
+    prompt: string,
 ): Promise<{ dir: string; filePath: string }> {
-  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pi-subagent-"));
-  const safeName = agentName.replace(/[^\w.-]+/g, "_");
-  const filePath = path.join(tmpDir, `prompt-${safeName}.md`);
-  await withFileMutationQueue(filePath, async () => {
-    await fs.promises.writeFile(filePath, prompt, { encoding: "utf-8", mode: 0o600 });
-  });
-  return { dir: tmpDir, filePath };
+    const tmpDir = await fs.promises.mkdtemp(
+        path.join(os.tmpdir(), "pi-subagent-"),
+    );
+    const safeName = agentName.replace(/[^\w.-]+/g, "_");
+    const filePath = path.join(tmpDir, `prompt-${safeName}.md`);
+    await withFileMutationQueue(filePath, async () => {
+        await fs.promises.writeFile(filePath, prompt, {
+            encoding: "utf-8",
+            mode: 0o600,
+        });
+    });
+    return { dir: tmpDir, filePath };
 }

@@ -26,8 +26,16 @@ import {
     createWriteToolDefinition,
     createBashToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import {TextContent, AssistantMessage} from "@earendil-works/pi-ai";
-import {matchesKey, Key, Component, Container, Text, TUI, Markdown} from "@earendil-works/pi-tui";
+import { TextContent, AssistantMessage } from "@earendil-works/pi-ai";
+import {
+    matchesKey,
+    Key,
+    Component,
+    Container,
+    Text,
+    TUI,
+    Markdown,
+} from "@earendil-works/pi-tui";
 
 /** Theme instance — accessed from globalThis (set by pi via initTheme) */
 const THEME_KEY = Symbol.for("@earendil-works/pi-coding-agent:theme");
@@ -35,9 +43,11 @@ const THEME_KEY = Symbol.for("@earendil-works/pi-coding-agent:theme");
 function getTheme(): {
     fg(color: string, text: string): string;
     bold(text: string): string;
-    italic(text: string): string
+    italic(text: string): string;
 } {
-    return (globalThis as Record<symbol, unknown>)[THEME_KEY] as ReturnType<typeof getTheme>;
+    return (globalThis as Record<symbol, unknown>)[THEME_KEY] as ReturnType<
+        typeof getTheme
+    >;
 }
 
 /** Number of lines to show in collapsed result preview (matches junie.ts JUNIE_PREVIEW_LINES) */
@@ -52,11 +62,16 @@ const BUILT_IN_TOOL_NAMES = new Set(["read", "edit", "write", "bash"]);
 /** Tool definition factory for pi's built-in tools (used for rendering only). */
 function createToolDefinitionForName(name: string, cwd: string): any {
     switch (name) {
-        case "read": return createReadToolDefinition(cwd);
-        case "edit": return createEditToolDefinition(cwd);
-        case "write": return createWriteToolDefinition(cwd);
-        case "bash": return createBashToolDefinition(cwd);
-        default: return undefined;
+        case "read":
+            return createReadToolDefinition(cwd);
+        case "edit":
+            return createEditToolDefinition(cwd);
+        case "write":
+            return createWriteToolDefinition(cwd);
+        case "bash":
+            return createBashToolDefinition(cwd);
+        default:
+            return undefined;
     }
 }
 
@@ -119,14 +134,21 @@ class ToolCallComponent extends Container {
 
         // ---- renderCall 风格（与 junie.ts 一致）----
         // 工具名称（bold + toolTitle 颜色）
-        this.addChild(new Text(getTheme().fg("toolTitle", getTheme().bold(toolName)), 1, 0));
+        this.addChild(
+            new Text(
+                getTheme().fg("toolTitle", getTheme().bold(toolName)),
+                1,
+                0,
+            ),
+        );
 
         // args 预览（muted 颜色，截断到 ~120 字符）
         const argsPreview = formatArgsPreview(args);
         if (argsPreview) {
-            const truncated = argsPreview.length > 120
-                ? argsPreview.slice(0, 120) + "..."
-                : argsPreview;
+            const truncated =
+                argsPreview.length > 120
+                    ? argsPreview.slice(0, 120) + "..."
+                    : argsPreview;
             this.addChild(new Text(getTheme().fg("muted", truncated), 2, 0));
         }
 
@@ -166,36 +188,51 @@ class ToolCallComponent extends Container {
 
         // 空内容 — 参考 junie.ts renderResult 的 partial/empty 处理
         if (!this.resultContent.trim()) {
-            this.addChild(new Text(
-                this.toolName === "junie_ai"
-                    ? getTheme().fg("warning", "Calling Junie AI...")
-                    : getTheme().fg("muted", "(No output)"),
-                2, 0
-            ));
+            this.addChild(
+                new Text(
+                    this.toolName === "junie_ai"
+                        ? getTheme().fg("warning", "Calling Junie AI...")
+                        : getTheme().fg("muted", "(No output)"),
+                    2,
+                    0,
+                ),
+            );
             return;
         }
 
         // 展开模式 — 参考 junie.ts renderResult expanded
         if (this.expanded) {
-            this.addChild(new Markdown(this.resultContent, 2, 0, getMarkdownTheme()));
-            this.addChild(new Text(
-                `(${keyHint("app.tools.expand", "to collapse")})`,
-                2, 0
-            ));
+            this.addChild(
+                new Markdown(this.resultContent, 2, 0, getMarkdownTheme()),
+            );
+            this.addChild(
+                new Text(
+                    `(${keyHint("app.tools.expand", "to collapse")})`,
+                    2,
+                    0,
+                ),
+            );
             return;
         }
 
         // 折叠模式 — 参考 junie.ts renderResult collapsed (8 行预览，toolOutput 颜色)
         const lines = this.resultContent.split("\n");
-        const preview = lines.slice(0, RESULT_PREVIEW_LINES)
+        const preview = lines
+            .slice(0, RESULT_PREVIEW_LINES)
             .map((l) => getTheme().fg("toolOutput", l))
             .join("\n");
         this.addChild(new Text(preview, 2, 0));
         if (lines.length > RESULT_PREVIEW_LINES) {
-            this.addChild(new Text(
-                getTheme().fg("muted", `(${keyHint("app.tools.expand", "to expand")})`),
-                2, 0
-            ));
+            this.addChild(
+                new Text(
+                    getTheme().fg(
+                        "muted",
+                        `(${keyHint("app.tools.expand", "to expand")})`,
+                    ),
+                    2,
+                    0,
+                ),
+            );
         }
     }
 }
@@ -225,7 +262,10 @@ class HistoryViewer {
     }
 
     /** Compute the starting offset of each message in the rendered allLines array. */
-    private computeMessageOffsets(messages: Component[], width: number): number[] {
+    private computeMessageOffsets(
+        messages: Component[],
+        width: number,
+    ): number[] {
         const offsets: number[] = [];
         let cumulative = 0;
         for (const msg of messages) {
@@ -259,7 +299,10 @@ class HistoryViewer {
 
             if (this.currentWidth > 0 && messages.length > 0) {
                 // Pre-expansion: compute message offsets and find what's at the viewport top
-                const preOffsets = this.computeMessageOffsets(messages, this.currentWidth);
+                const preOffsets = this.computeMessageOffsets(
+                    messages,
+                    this.currentWidth,
+                );
                 let msgIndex = 0;
                 let innerOffset = 0;
                 for (let i = preOffsets.length - 1; i >= 0; i--) {
@@ -272,7 +315,10 @@ class HistoryViewer {
 
                 // Toggle all expandable tool calls
                 for (const msg of messages) {
-                    if (msg instanceof ToolCallComponent && msg.isExpandable()) {
+                    if (
+                        msg instanceof ToolCallComponent &&
+                        msg.isExpandable()
+                    ) {
                         msg.toggleExpand();
                         toggled = true;
                     } else if (msg instanceof ToolExecutionComponent) {
@@ -286,14 +332,20 @@ class HistoryViewer {
 
                 if (toggled) {
                     // Post-expansion: find the new position of the same message
-                    const postOffsets = this.computeMessageOffsets(messages, this.currentWidth);
+                    const postOffsets = this.computeMessageOffsets(
+                        messages,
+                        this.currentWidth,
+                    );
                     const newOffset = postOffsets[msgIndex] + innerOffset;
                     this.scrollOffset = Math.max(0, newOffset);
                 }
             } else {
                 // Fallback: just toggle without offset adjustment
                 for (const msg of messages) {
-                    if (msg instanceof ToolCallComponent && msg.isExpandable()) {
+                    if (
+                        msg instanceof ToolCallComponent &&
+                        msg.isExpandable()
+                    ) {
                         msg.toggleExpand();
                         toggled = true;
                     } else if (msg instanceof ToolExecutionComponent) {
@@ -320,10 +372,9 @@ class HistoryViewer {
         }
         this.actualContentLines = allLines.length;
 
-        for(let i = 0;i<64;i++){
+        for (let i = 0; i < 64; i++) {
             allLines.push("");
         }
-
 
         const startLine = this.scrollOffset;
         const endLine = Math.min(startLine + 64, allLines.length);
@@ -332,8 +383,7 @@ class HistoryViewer {
         return result;
     }
 
-    invalidate(): void {
-    }
+    invalidate(): void {}
 }
 
 function isTextContent(obj: any): obj is TextContent {
@@ -346,7 +396,10 @@ function isTextContent(obj: any): obj is TextContent {
 
 export default function (pi: ExtensionAPI) {
     let currentTurnMessages: Component[] = [];
-    let toolExecutionComponent: Map<string, ToolCallComponent | ToolExecutionComponent> | null = null;
+    let toolExecutionComponent: Map<
+        string,
+        ToolCallComponent | ToolExecutionComponent
+    > | null = null;
     /** Current streaming assistant message component. Only one streams at a time, so a direct reference suffices. */
     let streamingAssistantComponent: AssistantMessageComponent | null = null;
     let historyViewer: HistoryViewer | null = null;
@@ -378,31 +431,42 @@ export default function (pi: ExtensionAPI) {
     /** Open the history viewer overlay. */
     function openHistoryOverlay(ctx: any) {
         historyViewer = new HistoryViewer(() => currentTurnMessages);
-        ctx.ui.custom((tui: TUI, _theme: any, _kb: any, done: (result?: unknown) => void) => {
-            tuiRef = tui;
-            historyViewer!.onClose = () => done(undefined);
-            return {
-                render: (width: number) => historyViewer!.render(width),
-                handleInput: (data: string) => {
-                    historyViewer!.handleInput(data);
-                    tui.requestRender();
+        ctx.ui.custom(
+            (
+                tui: TUI,
+                _theme: any,
+                _kb: any,
+                done: (result?: unknown) => void,
+            ) => {
+                tuiRef = tui;
+                historyViewer!.onClose = () => done(undefined);
+                return {
+                    render: (width: number) => historyViewer!.render(width),
+                    handleInput: (data: string) => {
+                        historyViewer!.handleInput(data);
+                        tui.requestRender();
+                    },
+                    invalidate: () => historyViewer!.invalidate(),
+                };
+            },
+            {
+                overlay: true,
+                overlayOptions: {
+                    width: "100%",
+                    maxHeight: "100%",
+                    anchor: "center",
                 },
-                invalidate: () => historyViewer!.invalidate(),
-            };
-        }, {
-            overlay: true,
-            overlayOptions: {
-                width: "100%",
-                maxHeight: "100%",
-                anchor: "center",
-            }
-        });
+            },
+        );
     }
 
     // agent_start: reset messages for new turn
     pi.on("agent_start", async (_event, ctx) => {
         currentTurnMessages = [];
-        toolExecutionComponent = new Map<string, ToolCallComponent | ToolExecutionComponent>();
+        toolExecutionComponent = new Map<
+            string,
+            ToolCallComponent | ToolExecutionComponent
+        >();
         streamingAssistantComponent = null;
         tuiRef = null;
         cwd = ctx.cwd;
@@ -424,7 +488,11 @@ export default function (pi: ExtensionAPI) {
     pi.on("message_start", (event) => {
         const msg = event.message;
         if (msg.role === "assistant") {
-            const comp = new AssistantMessageComponent(msg as AssistantMessage, false, markdownTheme);
+            const comp = new AssistantMessageComponent(
+                msg as AssistantMessage,
+                false,
+                markdownTheme,
+            );
             streamingAssistantComponent = comp;
             currentTurnMessages.push(comp);
             requestOverlayRender();
@@ -445,7 +513,9 @@ export default function (pi: ExtensionAPI) {
         switch (msg.role) {
             case "user":
                 if (typeof msg.content === "string") {
-                    currentTurnMessages.push(new UserMessageComponent(msg.content, markdownTheme));
+                    currentTurnMessages.push(
+                        new UserMessageComponent(msg.content, markdownTheme),
+                    );
                 } else if (Array.isArray(msg.content)) {
                     const textParts: string[] = [];
                     for (const item of msg.content) {
@@ -455,17 +525,30 @@ export default function (pi: ExtensionAPI) {
                             textParts.push("[Image]");
                         }
                     }
-                    currentTurnMessages.push(new UserMessageComponent(textParts.join("\n"), markdownTheme));
+                    currentTurnMessages.push(
+                        new UserMessageComponent(
+                            textParts.join("\n"),
+                            markdownTheme,
+                        ),
+                    );
                 }
                 break;
             case "assistant": {
                 // If we already have a tracked component from message_start, do a final update.
                 // Otherwise fall back to creating a new component (edge case).
                 if (streamingAssistantComponent) {
-                    streamingAssistantComponent.updateContent(msg as AssistantMessage);
+                    streamingAssistantComponent.updateContent(
+                        msg as AssistantMessage,
+                    );
                     streamingAssistantComponent = null;
                 } else {
-                    currentTurnMessages.push(new AssistantMessageComponent(msg as AssistantMessage, false, markdownTheme));
+                    currentTurnMessages.push(
+                        new AssistantMessageComponent(
+                            msg as AssistantMessage,
+                            false,
+                            markdownTheme,
+                        ),
+                    );
                 }
                 break;
             }
@@ -493,7 +576,7 @@ export default function (pi: ExtensionAPI) {
                     undefined,
                     toolDef as any,
                     getTuiWrapper(),
-                    cwd
+                    cwd,
                 );
                 tc.markExecutionStarted();
                 tc.setArgsComplete();
@@ -517,12 +600,17 @@ export default function (pi: ExtensionAPI) {
             if (tc instanceof ToolExecutionComponent) {
                 // ToolExecutionComponent expects the full result object with content and isPartial flag
                 tc.updateResult(
-                    { content: event.partialResult.content || [], isError: false },
-                    true // isPartial
+                    {
+                        content: event.partialResult.content || [],
+                        isError: false,
+                    },
+                    true, // isPartial
                 );
             } else {
                 // ToolCallComponent expects plain text
-                tc.updateResult(extractTextFromContent(event.partialResult.content || []));
+                tc.updateResult(
+                    extractTextFromContent(event.partialResult.content || []),
+                );
             }
             requestOverlayRender();
         }
@@ -535,12 +623,17 @@ export default function (pi: ExtensionAPI) {
             if (tc instanceof ToolExecutionComponent) {
                 // ToolExecutionComponent expects the full result object
                 tc.updateResult(
-                    { content: event.result.content || [], isError: event.isError },
-                    false // isPartial = false (final result)
+                    {
+                        content: event.result.content || [],
+                        isError: event.isError,
+                    },
+                    false, // isPartial = false (final result)
                 );
             } else {
                 // ToolCallComponent expects plain text
-                tc.updateResult(extractTextFromContent(event.result.content || []));
+                tc.updateResult(
+                    extractTextFromContent(event.result.content || []),
+                );
             }
             requestOverlayRender();
         }
