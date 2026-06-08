@@ -9,4 +9,5 @@ agent/extensions/node_modules
 node_modules
 nul
 agent/trust.json
+agent/extensions/history.json
 .pi/
