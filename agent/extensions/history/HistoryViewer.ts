@@ -4,17 +4,20 @@
  * 管理滚动状态，并将消息列表渲染到备用屏幕
  * 历史覆盖层的固定高度视口中。
  *
+ * 视窗布局（从上到下）：
+ *   - 消息显示区域（可滚动）
+ *   - 分隔空行（消息显示组件与 footer 之间）
+ *   - Footer 行（固定在视窗最后一行，显示 working 指示器）
+ *
  * 自动滚动行为：
- *   - 默认跟随最新消息（pinnedToBottom = true）
+ *   - 当消息显示区域的最后一行是最新消息时，跟随最新消息（pinnedToBottom = true）
  *   - 向上滚动浏览历史消息时停止跟随
  *   - 滚动回最底部时自动恢复跟随
  *
- * Working 指示器：
+ * Working 指示器（Footer 组件）：
  *   - 与 pi 内置 Loader 使用相同的旋转帧和间隔（80ms）
  *   - 通过 setInterval 驱动旋转动画，利用 tui.requestRender() 触发重绘
- *   - 指示器放置在所有渲染内容的最后一行
- *   - 当指示器在视窗范围内时自动滚动跟随最新内容
- *   - 当用户上滚导致指示器离开视窗时停止自动滚动
+ *   - Footer 行固定在视窗最后一行，无论消息区域滚动情况如何
  *
  * 输入处理：
  *   - 上/下箭头键   → 滚动 SCROLL_LINE_STEP 行
@@ -208,16 +211,14 @@ export class HistoryViewer {
     }
 
     /**
-     * 计算最大滚动偏移量。
-     * 内容底部最多可以滚动到视窗最后一行，
-     * 确保 working 指示器始终可见。
-     * 计算时会自动计入 working 指示器行（如果正在工作）。
+     * 计算消息显示区域的最大滚动偏移量。
+     * Footer 行固定在视窗最后一行，分隔空行固定在 footer 之上，
+     * 因此消息区域的高度为 viewportHeight - 2。
      */
     private computeMaxScroll(): number {
         if (this.viewportHeight <= 0) return 0;
-        const status = this.getWorkingStatus();
-        const workingLine = status.isWorking ? 1 : 0;
-        return Math.max(0, this.totalContentLines + workingLine - this.viewportHeight);
+        const messageAreaHeight = Math.max(1, this.viewportHeight - 2);
+        return Math.max(0, this.totalContentLines - messageAreaHeight);
     }
 
     /**
@@ -341,9 +342,15 @@ export class HistoryViewer {
     // -- 渲染 ----------------------------------------------------------------
 
     /**
-     * 将所有消息渲染到固定行数的视口中，底部附带 working 指示器。
+     * 将消息渲染到消息显示区域，并通过固定的分隔行和 footer 行
+     * 组合成完整视窗输出。
      *
-     * @param width        终端宽度（列数）
+     * 布局（从上到下）：
+     *   - 消息显示区域（可滚动，高度 = viewportHeight - 2）
+     *   - 分隔空行（消息显示组件与 footer 之间）
+     *   - Footer 行（固定在视窗最后一行）
+     *
+     * @param width          终端宽度（列数）
      * @param viewportHeight 动态视窗高度（行数），从 tui.terminal.rows 获取
      */
     render(width: number, viewportHeight: number): string[] {
@@ -354,34 +361,56 @@ export class HistoryViewer {
         this.updateSpinner();
 
         // 将所有消息渲染为行数组（会更新 totalContentLines）
-        const allLines = this.renderAllMessages(width);
+        const messageLines = this.renderAllMessages(width);
 
-        // 在所有内容末尾追加 working 指示器
-        const status = this.getWorkingStatus();
-        if (status.isWorking) {
-            allLines.push(this.buildWorkingLine(status));
-        }
+        // 消息显示区域高度（扣除分隔空行和 footer 行）
+        const messageAreaHeight = Math.max(1, viewportHeight - 2);
 
         // 自动滚动：如果固定在底部，跟随最新内容
         // 如果已不在底部，仅将偏移量限制在有效范围内
+        const maxScroll = this.computeMaxScroll();
         if (this.pinnedToBottom) {
-            this.scrollOffset = this.computeMaxScroll();
+            this.scrollOffset = maxScroll;
         } else {
-            this.scrollOffset = Math.min(
-                this.scrollOffset,
-                this.computeMaxScroll(),
-            );
+            this.scrollOffset = Math.min(this.scrollOffset, maxScroll);
         }
         this.scrollOffset = Math.max(0, this.scrollOffset);
 
-        // 用空行填充，确保我们可以截取恰好 viewportHeight 行
-        this.padToViewport(allLines);
+        // 用空行填充，确保可以截取恰好 messageAreaHeight 行
+        this.padMessageLines(messageLines, messageAreaHeight);
 
-        // 根据滚动偏移量截取可见窗口
-        return allLines.slice(
+        // 根据滚动偏移量截取消息区域可见窗口
+        const visibleMessageLines = messageLines.slice(
             this.scrollOffset,
-            this.scrollOffset + viewportHeight,
+            this.scrollOffset + messageAreaHeight,
         );
+
+        // 构建最终输出：消息区域 + 分隔空行 + footer
+        const output: string[] = [];
+        output.push(...visibleMessageLines);
+
+        // 确保消息区域有恰好 messageAreaHeight 行
+        while (output.length < messageAreaHeight) {
+            output.push("");
+        }
+
+        // 消息显示组件与 footer 之间的分隔空行
+        output.push("");
+
+        // Footer 组件（固定在视窗最后一行）
+        const status = this.getWorkingStatus();
+        if (status.isWorking) {
+            output.push(this.buildWorkingLine(status));
+        } else {
+            output.push("");
+        }
+
+        // 确保恰好 viewportHeight 行，防止 overlay 下方内容透出
+        while (output.length < viewportHeight) {
+            output.push("");
+        }
+
+        return output.slice(0, viewportHeight);
     }
 
     /**
@@ -404,8 +433,9 @@ export class HistoryViewer {
 
     /**
      * 渲染每条消息并收集它们的行。
-     * 在连续的消息之间插入一个空行分隔符，
-     * 最后一条消息后不加空行，避免底部多余空白。
+     * 在连续的消息之间插入一个空行分隔符。
+     * 最后一条消息后不添加空行——消息区域与 footer 之间的分隔
+     * 由视窗布局中的固定分隔行提供。
      */
     private renderAllMessages(width: number): string[] {
         const lines: string[] = [];
@@ -427,12 +457,11 @@ export class HistoryViewer {
     }
 
     /**
-     * 追加空字符串，直到行数组有足够条目支持当前滚动位置。
-     * 保证始终可以截取恰好 viewportHeight 行，
-     * 防止 overlay 界面下方的内容透出。
+     * 追加空字符串，直到消息行数组有足够条目支持当前滚动位置。
+     * 保证始终可以从 scrollOffset 开始截取恰好 messageAreaHeight 行。
      */
-    private padToViewport(lines: string[]): void {
-        const targetLength = this.scrollOffset + this.viewportHeight;
+    private padMessageLines(lines: string[], messageAreaHeight: number): void {
+        const targetLength = this.scrollOffset + messageAreaHeight;
         while (lines.length < targetLength) {
             lines.push("");
         }
