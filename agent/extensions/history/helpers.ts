@@ -1,0 +1,122 @@
+/**
+ * 历史扩展 — 工具辅助函数
+ *
+ * 历史查看器组件和事件处理器中使用的
+ * 共享格式化、内容提取和类型守卫函数。
+ */
+
+import type { TextContent } from "@earendil-works/pi-ai";
+import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import {
+    createReadToolDefinition,
+    createEditToolDefinition,
+    createWriteToolDefinition,
+    createBashToolDefinition,
+} from "@earendil-works/pi-coding-agent";
+
+// ---------------------------------------------------------------------------
+// 参数格式化
+// ---------------------------------------------------------------------------
+
+/**
+ * 将工具参数格式化为紧凑的预览字符串。
+ *
+ * - 标量值直接字符串化。
+ * - 对象渲染为 "键: 值" 行（每个条目一行）。
+ * - 复杂值（嵌套对象）进行 JSON 序列化。
+ *
+ * 由 ToolCallComponent 用于在历史视图中显示工具调用参数。
+ */
+export function formatArgsPreview(args: unknown): string {
+    if (args === null || args === undefined) return "";
+    if (typeof args === "string") return args;
+    if (typeof args !== "object" || Array.isArray(args)) return String(args);
+
+    const entries = Object.entries(args as Record<string, unknown>);
+    if (entries.length === 0) return "";
+
+    return entries
+        .map(([key, value]) => {
+            const display = typeof value === "object"
+                ? JSON.stringify(value)
+                : String(value ?? "");
+            return `${key}: ${display}`;
+        })
+        .join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// 内容提取
+// ---------------------------------------------------------------------------
+
+/**
+ * 从 pi 内容数组中提取可显示的文本。
+ *
+ * 内容数组包含 TextContent 和 ImageContent 项。
+ * 文本项被拼接在一起；图像被替换为 "[Image]" 占位符。
+ */
+export function extractTextFromContent(content: unknown[]): string {
+    const parts: string[] = [];
+    for (const item of content) {
+        if (!item || typeof item !== "object" || !("type" in item)) continue;
+        const typed = item as { type: string; text?: string };
+        if (typed.type === "text" && typed.text) {
+            parts.push(typed.text);
+        } else if (typed.type === "image") {
+            parts.push("[Image]");
+        }
+    }
+    return parts.join("\n");
+}
+
+/**
+ * 从消息的 content 字段中提取面向用户的文本。
+ *
+ * 同时处理字符串内容和内容数组格式。
+ * 内容数组中的图像被替换为 "[Image]" 占位符。
+ */
+export function extractUserMessageText(content: unknown): string {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+
+    return content
+        .map((item) => {
+            if (isTextContent(item)) return item.text;
+            return "[Image]";
+        })
+        .join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// 类型守卫
+// ---------------------------------------------------------------------------
+
+/** 若该值是 pi TextContent 对象则返回 true。 */
+export function isTextContent(value: unknown): value is TextContent {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "text" in (value as Record<string, unknown>)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 工具定义工厂
+// ---------------------------------------------------------------------------
+
+/**
+ * 返回一个 pi 内置工具定义，仅用于渲染。
+ *
+ * 内置工具（read/edit/write/bash）使用 pi 的原生 ToolExecutionComponent
+ * 进行富文本 diff/代码高亮渲染。此工厂提供匹配的定义，
+ * 使渲染器能够生成带样式的输出。
+ */
+export function createBuiltInToolDefinition(name: string, cwd: string): ToolDefinition<any, any> | undefined {
+    switch (name) {
+        case "read":  return createReadToolDefinition(cwd);
+        case "edit":  return createEditToolDefinition(cwd);
+        case "write": return createWriteToolDefinition(cwd);
+        case "bash":  return createBashToolDefinition(cwd);
+        default:      return undefined;
+    }
+}
