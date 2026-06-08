@@ -1,7 +1,7 @@
 /**
  * 历史扩展 — ToolCallComponent
  *
- * 为没有原生 pi ToolDefinition 渲染器的工具（如 junie_ai、subagent）
+ * 为没有原生 pi ToolDefinition 渲染器的工具（如 junie_ai）
  * 渲染工具调用及其结果的通用组件。
  *
  * 调用渲染：  粗体工具名称（toolTitle 颜色）
