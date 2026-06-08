@@ -264,11 +264,7 @@ export default function (pi: ExtensionAPI) {
                     handleInput: (data: string) => {
                         // ESC：关闭覆盖层并返回主屏幕
                         if (matchesKey(data, Key.esc)) {
-                            viewer.dispose();
-                            terminal.write(ALT_SCREEN_EXIT);
-                            tui.requestRender(true);
-                            viewerOpen = false;
-                            done(undefined);
+                            closeViewer();
                             return;
                         }
 
@@ -282,9 +278,27 @@ export default function (pi: ExtensionAPI) {
                             return;
                         }
 
-                        // 所有其他输入（箭头键、Ctrl+O 等）
-                        viewer.handleInput(data);
-                        tui.requestRender();
+                        // Ctrl+C：传递到底层终端以支持复制快捷键（不做任何操作）
+                        if (matchesKey(data, Key.ctrl("c"))) {
+                            return;
+                        }
+
+                        // 箭头键导航、Ctrl+O 切换等：若已处理则重新渲染，
+                        // 否则（任意其他键按下）关闭查看器
+                        if (viewer.handleInput(data)) {
+                            tui.requestRender();
+                        } else {
+                            closeViewer();
+                        }
+
+                        /** 关闭查看器并恢复主屏幕。 */
+                        function closeViewer(): void {
+                            viewer.dispose();
+                            terminal.write(ALT_SCREEN_EXIT);
+                            tui.requestRender(true);
+                            viewerOpen = false;
+                            done(undefined);
+                        }
                     },
 
                     invalidate: () => viewer.invalidate(),

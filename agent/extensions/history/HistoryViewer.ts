@@ -136,10 +136,14 @@ export class HistoryViewer {
 
     // -- 输入处理 ------------------------------------------------------------
 
-    /** 处理历史覆盖层的键盘输入。 */
-    handleInput(data: string): void {
-        if (this.handleKeyboardNavigation(data)) return;
-        if (this.handleToolToggle(data)) return;
+    /**
+     * 处理历史覆盖层的键盘输入。
+     * @returns 若输入已被处理（导航或切换）则返回 true，否则返回 false。
+     */
+    handleInput(data: string): boolean {
+        if (this.handleKeyboardNavigation(data)) return true;
+        if (this.handleToolToggle(data)) return true;
+        return false;
     }
 
     /**
