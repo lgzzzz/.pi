@@ -47,6 +47,7 @@ import { loadConfig } from "./config.js";
 import { buildFooterLines } from "../custom-footer/buildFooterLines.js";
 import { getTheme } from "./theme.js";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { execSync } from "node:child_process";
 
 // ---------------------------------------------------------------------------
 // 类型别名
@@ -198,12 +199,24 @@ export default function (pi: ExtensionAPI) {
             const sessionName =
                 c.sessionManager.getSessionName() ?? undefined;
 
+            // 获取当前 git 分支
+            let gitBranch: string | undefined;
+            try {
+                gitBranch = execSync("git branch --show-current", {
+                    cwd: c.cwd,
+                    encoding: "utf-8",
+                    timeout: 1000,
+                }).trim() || undefined;
+            } catch {
+                // 非 git 仓库或命令失败，忽略
+            }
+
             const theme = getTheme();
             return buildFooterLines({
                 width,
                 cwd: c.cwd,
                 home: process.env.HOME || process.env.USERPROFILE,
-                gitBranch: undefined,
+                gitBranch,
                 sessionName,
                 totalInput,
                 totalOutput,
