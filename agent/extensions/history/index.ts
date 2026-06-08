@@ -11,10 +11,11 @@
  *     进行富文本 diff/代码渲染
  *   - 其他工具使用通用的 ToolCallComponent，支持折叠/展开结果
  *   - Ctrl+O 同时切换所有工具结果的展开/折叠状态
+ *   - Agent 工作时在内容底部显示旋转 working 指示器，与 pi 内置 Loader 一致
  *
  * 目录结构：
  *   index.ts               — 扩展入口（事件处理器 + 覆盖层逻辑）
- *   constants.ts           — 共享常量（魔数、ANSI 序列）
+ *   constants.ts           — 共享常量（魔数、ANSI 序列、旋转帧）
  *   theme.ts               — 主题访问辅助函数
  *   helpers.ts             — 格式化、内容提取、工具定义工厂
  *   ToolCallComponent.ts   — 通用工具调用/结果渲染（用于非内置工具）
@@ -77,6 +78,12 @@ export default function (pi: ExtensionAPI) {
     /** 历史查看器覆盖层当前是否已打开。 */
     let viewerOpen: boolean = false;
 
+    /** Agent 是否正在工作中（agent_start 到 agent_end 之间）。 */
+    let isWorking: boolean = false;
+
+    /** 当前正在执行的工具名称（用于 working 指示器）。 */
+    let currentToolName: string = "";
+
     // 缓存的 markdown 主题 — 在所有组件中复用
     const markdownTheme = getMarkdownTheme();
 
@@ -107,6 +114,14 @@ export default function (pi: ExtensionAPI) {
         workingDir = cwd;
     }
 
+    /**
+     * 返回当前 working 状态快照，供 HistoryViewer 轮询。
+     * 返回新对象以避免引用问题。
+     */
+    function getWorkingStatus(): { isWorking: boolean; currentTool: string } {
+        return { isWorking, currentTool: currentToolName };
+    }
+
     // -- 覆盖层管理 ----------------------------------------------------------
 
     /** 在备用屏幕中以全屏覆盖层的形式打开历史查看器。 */
@@ -118,7 +133,10 @@ export default function (pi: ExtensionAPI) {
         // 如果已经打开，不要重复打开
         if (viewerOpen) return;
         viewerOpen = true;
-        const viewer = new HistoryViewer(() => messageComponents);
+        const viewer = new HistoryViewer(
+            () => messageComponents,
+            getWorkingStatus,
+        );
 
         ctx.ui.custom(
             (
@@ -128,6 +146,7 @@ export default function (pi: ExtensionAPI) {
                 done: (result?: unknown) => void,
             ) => {
                 overlayTui = tui;
+                viewer.setTui(tui);
                 const terminal = tui.terminal;
 
                 // 进入备用屏幕，启用鼠标追踪
@@ -142,6 +161,7 @@ export default function (pi: ExtensionAPI) {
                     handleInput: (data: string) => {
                         // ESC：关闭覆盖层并返回主屏幕
                         if (matchesKey(data, Key.esc)) {
+                            viewer.dispose();
                             terminal.write(ALT_SCREEN_EXIT);
                             tui.requestRender(true);
                             viewerOpen = false;
@@ -180,15 +200,25 @@ export default function (pi: ExtensionAPI) {
 
     // -- 事件处理器 ----------------------------------------------------------
 
-    // 当新的代理轮次开始时重置状态，并根据配置决定是否自动打开历史查看器
+    // 当新的代理轮次开始时重置状态，标记 working，并根据配置决定是否自动打开历史查看器
     pi.on("agent_start", async (_event, ctx) => {
         resetTurnState(ctx.cwd);
+        isWorking = true;
+        currentToolName = "";
+        requestRender();
 
         // 根据配置文件决定是否自动打开历史查看器
         const config = loadConfig(ctx.cwd);
         if (config.autoOpenOnStart) {
             openHistoryView(ctx);
         }
+    });
+
+    // Agent 处理完成时清除 working 状态
+    pi.on("agent_end", async () => {
+        isWorking = false;
+        currentToolName = "";
+        requestRender();
     });
 
     // Ctrl+H：打开历史覆盖层
@@ -267,21 +297,37 @@ export default function (pi: ExtensionAPI) {
 
     // -- 工具执行生命周期 ----------------------------------------------------
 
-    /**
-     * tool_execution_start：为此工具创建合适的组件。
-     *   - 内置工具（read/edit/write/bash）→ pi 的原生 ToolExecutionComponent
-     *     带富文本 diff/代码渲染。
-     *   - 所有其他工具 → 通用 ToolCallComponent。
-     */
+    /** tool_execution_start：更新当前工具名称。 */
     pi.on("tool_execution_start", (event) => {
-        const component = createToolComponent(
+        currentToolName = event.toolName;
+        requestRender();
+    });
+
+    /** tool_execution_end：清除当前工具名称。 */
+    pi.on("tool_execution_end", () => {
+        currentToolName = "";
+        requestRender();
+    });
+
+    /** 为此工具调用创建合适的组件。 */
+    function createToolComponentForEvent(
+        toolName: string,
+        toolCallId: string,
+        args: unknown,
+    ) {
+        const component = createToolComponent(toolName, toolCallId, args);
+        toolRegistry.set(toolCallId, component);
+        messageComponents.push(component);
+        requestRender();
+    }
+
+    // 将 tool_execution_start 的组件创建逻辑接上
+    pi.on("tool_execution_start", (event) => {
+        createToolComponentForEvent(
             event.toolName,
             event.toolCallId,
             event.args,
         );
-        toolRegistry.set(event.toolCallId, component);
-        messageComponents.push(component);
-        requestRender();
     });
 
     /** 根据工具类型创建合适的组件。 */

@@ -9,6 +9,13 @@
  *   - 向上滚动浏览历史消息时停止跟随
  *   - 滚动回最底部时自动恢复跟随
  *
+ * Working 指示器：
+ *   - 与 pi 内置 Loader 使用相同的旋转帧和间隔（80ms）
+ *   - 通过 setInterval 驱动旋转动画，利用 tui.requestRender() 触发重绘
+ *   - 指示器放置在所有渲染内容的最后一行
+ *   - 当指示器在视窗范围内时自动滚动跟随最新内容
+ *   - 当用户上滚导致指示器离开视窗时停止自动滚动
+ *
  * 输入处理：
  *   - 上/下箭头键   → 滚动 SCROLL_LINE_STEP 行
  *   - 左/右箭头键   → 滚动一页（动态视窗高度）
@@ -18,17 +25,23 @@
  * 鼠标滚轮滚动由外部处理（参见 mouse.ts），调用 scrollBy()。
  */
 
-import type { Component } from "@earendil-works/pi-tui";
-import { Key, matchesKey } from "@earendil-works/pi-tui";
-import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
-import { SCROLL_LINE_STEP } from "./constants.js";
-import { ToolCallComponent } from "./ToolCallComponent.js";
+import type {Component, TUI} from "@earendil-works/pi-tui";
+import {Key, matchesKey} from "@earendil-works/pi-tui";
+import {ToolExecutionComponent} from "@earendil-works/pi-coding-agent";
+import {SCROLL_LINE_STEP, SPINNER_FRAMES, SPINNER_INTERVAL_MS} from "./constants.js";
+import {ToolCallComponent} from "./ToolCallComponent.js";
+import {getTheme} from "./theme.js";
 
 /** 返回当前要渲染的消息/工具 Component 列表的函数。 */
 export type MessageListProvider = () => Component[];
 
+/** 返回当前 working 状态的函数。 */
+export type WorkingStatusProvider = () => { isWorking: boolean; currentTool: string };
+
 export class HistoryViewer {
     private readonly getMessages: MessageListProvider;
+    private readonly getWorkingStatus: WorkingStatusProvider;
+    private tui: TUI | null = null;
     private scrollOffset: number = 0;
     private renderWidth: number = 0;
     private viewportHeight: number = 0;
@@ -41,8 +54,75 @@ export class HistoryViewer {
      */
     private pinnedToBottom: boolean = true;
 
-    constructor(getMessages: MessageListProvider) {
+    // -- Working 指示器状态 -------------------------------------------------
+
+    /** 当前旋转帧索引。 */
+    private spinnerFrame: number = 0;
+
+    /** 旋转动画的 setInterval 句柄，为 null 时动画停止。 */
+    private spinnerInterval: ReturnType<typeof setInterval> | null = null;
+
+    /** dispose 是否已调用。 */
+    private disposed: boolean = false;
+
+    constructor(
+        getMessages: MessageListProvider,
+        getWorkingStatus: WorkingStatusProvider,
+    ) {
         this.getMessages = getMessages;
+        this.getWorkingStatus = getWorkingStatus;
+    }
+
+    /**
+     * 设置 TUI 引用，使 HistoryViewer 能够通过 requestRender 触发重绘。
+     * 在 ctx.ui.custom 回调中调用。
+     */
+    setTui(tui: TUI): void {
+        this.tui = tui;
+    }
+
+    /**
+     * 停止旋转动画并标记为已释放。
+     * 应在覆盖层关闭时调用。
+     */
+    dispose(): void {
+        this.disposed = true;
+        this.stopSpinner();
+    }
+
+    // -- Working 指示器动画 --------------------------------------------------
+
+    /** 根据当前 working 状态启动或停止旋转动画。 */
+    private updateSpinner(): void {
+        if (this.disposed) return;
+
+        const status = this.getWorkingStatus();
+        if (status.isWorking && !this.spinnerInterval) {
+            this.startSpinner();
+        } else if (!status.isWorking && this.spinnerInterval) {
+            this.stopSpinner();
+        }
+    }
+
+    /** 启动旋转动画（每 SPINNER_INTERVAL_MS 推进一帧并触发重绘）。 */
+    private startSpinner(): void {
+        if (this.spinnerInterval) return;
+        this.spinnerInterval = setInterval(() => {
+            if (this.disposed) {
+                this.stopSpinner();
+                return;
+            }
+            this.spinnerFrame = (this.spinnerFrame + 1) % SPINNER_FRAMES.length;
+            this.tui?.requestRender();
+        }, SPINNER_INTERVAL_MS);
+    }
+
+    /** 停止旋转动画。 */
+    private stopSpinner(): void {
+        if (this.spinnerInterval) {
+            clearInterval(this.spinnerInterval);
+            this.spinnerInterval = null;
+        }
     }
 
     // -- 输入处理 ------------------------------------------------------------
@@ -129,13 +209,15 @@ export class HistoryViewer {
 
     /**
      * 计算最大滚动偏移量。
-     * 内容底部最多可以滚动到视窗底部上方 3 行的位置，
-     * 确保底部最多只有三行空白。
+     * 内容底部最多可以滚动到视窗最后一行，
+     * 确保 working 指示器始终可见。
+     * 计算时会自动计入 working 指示器行（如果正在工作）。
      */
     private computeMaxScroll(): number {
         if (this.viewportHeight <= 0) return 0;
-        const maxBlankLines = 3;
-        return Math.max(0, this.totalContentLines - this.viewportHeight + maxBlankLines);
+        const status = this.getWorkingStatus();
+        const workingLine = status.isWorking ? 1 : 0;
+        return Math.max(0, this.totalContentLines + workingLine - this.viewportHeight);
     }
 
     /**
@@ -181,7 +263,7 @@ export class HistoryViewer {
                 };
             }
         }
-        return { messageIndex: 0, innerOffset: 0 };
+        return {messageIndex: 0, innerOffset: 0};
     }
 
     // -- 工具结果切换 --------------------------------------------------------
@@ -193,7 +275,7 @@ export class HistoryViewer {
             messages,
             this.renderWidth,
         );
-        const { messageIndex, innerOffset } =
+        const {messageIndex, innerOffset} =
             this.findViewportAnchor(preOffsets);
 
         // 执行所有切换
@@ -259,7 +341,7 @@ export class HistoryViewer {
     // -- 渲染 ----------------------------------------------------------------
 
     /**
-     * 将所有消息渲染到固定行数的视口中。
+     * 将所有消息渲染到固定行数的视口中，底部附带 working 指示器。
      *
      * @param width        终端宽度（列数）
      * @param viewportHeight 动态视窗高度（行数），从 tui.terminal.rows 获取
@@ -268,8 +350,17 @@ export class HistoryViewer {
         this.renderWidth = width;
         this.viewportHeight = viewportHeight;
 
+        // 同步旋转动画状态
+        this.updateSpinner();
+
         // 将所有消息渲染为行数组（会更新 totalContentLines）
         const allLines = this.renderAllMessages(width);
+
+        // 在所有内容末尾追加 working 指示器
+        const status = this.getWorkingStatus();
+        if (status.isWorking) {
+            allLines.push(this.buildWorkingLine(status));
+        }
 
         // 自动滚动：如果固定在底部，跟随最新内容
         // 如果已不在底部，仅将偏移量限制在有效范围内
@@ -291,6 +382,24 @@ export class HistoryViewer {
             this.scrollOffset,
             this.scrollOffset + viewportHeight,
         );
+    }
+
+    /**
+     * 构建 working 指示器行，与 pi 内置 Loader 样式一致。
+     * 格式：{spinner} Working...  或  {spinner} Working... (bash)
+     * 颜色：spinner 用 accent，文字用 muted
+     */
+    private buildWorkingLine(
+        status: { isWorking: boolean; currentTool: string },
+    ): string {
+        const theme = getTheme();
+        const frame = SPINNER_FRAMES[this.spinnerFrame % SPINNER_FRAMES.length] ?? "?";
+        const spinner = theme.fg("accent", frame);
+        const message = status.currentTool
+            ? `Working... (${status.currentTool})`
+            : "Working...";
+        const text = theme.fg("muted", message);
+        return `${spinner} ${text}`;
     }
 
     /**
@@ -330,5 +439,6 @@ export class HistoryViewer {
     }
 
     /** 空操作；满足覆盖层组件接口要求。 */
-    invalidate(): void {}
+    invalidate(): void {
+    }
 }

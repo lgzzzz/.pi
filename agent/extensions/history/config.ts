@@ -31,7 +31,7 @@ export interface HistoryConfig {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_CONFIG: HistoryConfig = {
-    autoOpenOnStart: false,
+    autoOpenOnStart: true,
 };
 
 // ---------------------------------------------------------------------------

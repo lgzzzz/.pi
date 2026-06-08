@@ -47,3 +47,9 @@ export const ALT_SCREEN_EXIT = [
 
 /** 使用 pi 原生 ToolExecutionComponent 进行富文本渲染的内置工具名称集合。 */
 export const BUILT_IN_TOOL_NAMES = new Set(["read", "edit", "write", "bash"]);
+
+/** 旋转动画帧，与 pi 内置 Loader 的默认帧保持一致。 */
+export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+/** 旋转帧间隔（毫秒），与 pi 内置 Loader 的默认间隔保持一致。 */
+export const SPINNER_INTERVAL_MS = 80;
