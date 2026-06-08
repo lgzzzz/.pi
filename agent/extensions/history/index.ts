@@ -41,6 +41,7 @@ import {
 } from "./constants.js";
 import { extractTextFromContent, extractUserMessageText, createBuiltInToolDefinition } from "./helpers.js";
 import { ToolCallComponent } from "./ToolCallComponent.js";
+import { renderJunieCall, renderJunieResult } from "../junie.js";
 import { HistoryViewer } from "./HistoryViewer.js";
 import { parseSGRMouseScroll } from "./mouse.js";
 import { loadConfig } from "./config.js";
@@ -472,6 +473,16 @@ export default function (pi: ExtensionAPI) {
             }
         }
 
+        // junie_ai：使用自定义渲染器，与主界面保持一致
+        if (toolName === "junie_ai") {
+            return new ToolCallComponent(
+                toolName,
+                args,
+                renderJunieCall,
+                renderJunieResult,
+            );
+        }
+
         // 回退：为非内置工具使用通用组件
         return new ToolCallComponent(toolName, args);
     }
@@ -489,6 +500,9 @@ export default function (pi: ExtensionAPI) {
                 },
                 true, // isPartial
             );
+        } else if (component.hasCustomResultRenderer) {
+            // 使用自定义渲染器的工具（如 junie_ai）：传递完整结果对象
+            component.updateFullResult(event.partialResult, true);
         } else {
             component.updateResult(
                 extractTextFromContent(event.partialResult.content || []),
@@ -511,6 +525,9 @@ export default function (pi: ExtensionAPI) {
                 },
                 false, // 最终结果，非部分更新
             );
+        } else if (component.hasCustomResultRenderer) {
+            // 使用自定义渲染器的工具（如 junie_ai）：传递完整结果对象
+            component.updateFullResult(event.result, false);
         } else {
             component.updateResult(
                 extractTextFromContent(event.result.content || []),
