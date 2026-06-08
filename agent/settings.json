@@ -1,12 +1,12 @@
 {
   "lastChangelogVersion": "0.78.1",
-  "defaultThinkingLevel": "xhigh",
+  "defaultThinkingLevel": "high",
   "showHardwareCursor": false,
   "quietStartup": true,
   "hideThinkingBlock": false,
   "compaction": {
     "enabled": false
   },
-  "defaultProvider": "deepseek",
-  "defaultModel": "deepseek-v4-pro"
+  "defaultProvider": "opencode-go",
+  "defaultModel": "glm-5.1"
 }
