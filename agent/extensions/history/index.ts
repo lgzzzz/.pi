@@ -39,7 +39,7 @@ import {
     ALT_SCREEN_ENTER,
     ALT_SCREEN_EXIT,
 } from "./constants.js";
-import { extractTextFromContent, extractUserMessageText, createBuiltInToolDefinition } from "./helpers.js";
+import { extractTextFromContent, extractUserMessageText, createBuiltInToolDefinition, aggregateUsage } from "./helpers.js";
 import { ToolCallComponent } from "./ToolCallComponent.js";
 import { renderJunieCall, renderJunieResult } from "../junie.js";
 import { HistoryViewer } from "./HistoryViewer.js";
@@ -148,22 +148,8 @@ export default function (pi: ExtensionAPI) {
             if (!c) return [] as string[];
 
             // 聚合所有 assistant 消息的 usage
-            let totalInput = 0;
-            let totalOutput = 0;
-            let totalCacheRead = 0;
-            let totalCacheWrite = 0;
-            for (const entry of c.sessionManager.getEntries()) {
-                if (
-                    entry.type === "message" &&
-                    entry.message.role === "assistant"
-                ) {
-                    const usage = entry.message.usage;
-                    totalInput += usage.input;
-                    totalOutput += usage.output;
-                    totalCacheRead += usage.cacheRead;
-                    totalCacheWrite += usage.cacheWrite;
-                }
-            }
+            const { totalInput, totalOutput, totalCacheRead, totalCacheWrite } =
+                aggregateUsage(c.sessionManager.getEntries());
 
             const contextUsage = c.getContextUsage();
             const contextWindow =
