@@ -221,7 +221,7 @@ export class HistoryViewer {
     private getFooterHeight(): number {
         const status = this.getWorkingStatus();
         let height = 0;
-        if (status.isWorking) height += 1;
+        if (status.isWorking) height += 2;
         if (this.getFooterLines) {
             const w = this.renderWidth > 0 ? this.renderWidth : 80;
             height += this.getFooterLines(w).length;
@@ -401,8 +401,10 @@ export class HistoryViewer {
         const status = this.getWorkingStatus();
         if (status.isWorking) {
             output.push(this.buildWorkingLine(status));
+            if (footerHeight > 0) {
+                output.push("");
+            }
         }
-
         // 自定义 footer 行
         if (this.getFooterLines) {
             output.push(...this.getFooterLines(width));
