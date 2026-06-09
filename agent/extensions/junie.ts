@@ -12,6 +12,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme, keyHint } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Text, type Component } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { buildCollapsedToolPreview } from "./history/helpers.js";
 
 /** Number of lines to show in collapsed preview */
 const JUNIE_PREVIEW_LINES = 8;
@@ -105,14 +106,12 @@ export function renderJunieResult(
     }
 
     // Collapsed view: show line-truncated preview
-    const lines = textContent.split("\n");
-    const previewLines = lines.slice(0, JUNIE_PREVIEW_LINES);
-    let text = previewLines
-        .map((l) => theme.fg("toolOutput", l))
-        .join("\n");
-    if (lines.length > JUNIE_PREVIEW_LINES) {
-        text += `\n${theme.fg("muted", `(${keyHint("app.tools.expand", "to expand")})`)}`;
-    }
+    const text = buildCollapsedToolPreview(
+        textContent,
+        JUNIE_PREVIEW_LINES,
+        (color, s) => theme.fg(color, s),
+        `(${keyHint("app.tools.expand", "to expand")})`,
+    );
     return new Text(text, 0, 0);
 }
 
