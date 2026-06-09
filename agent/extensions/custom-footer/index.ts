@@ -15,20 +15,6 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { buildFooterLines } from "./buildFooterLines.js";
 
 // ---------------------------------------------------------------------------
-// DeepSeek v4 pro 人民币定价（每百万 tokens）
-// ---------------------------------------------------------------------------
-const PRICING = {
-    inputUncached: 2, // 未命中缓存：2 元/百万 tokens
-    inputCached: 0.025, // 命中缓存：0.025 元/百万 tokens
-    output: 6, // 输出：6 元/百万 tokens
-} as const;
-
-/** 根据 token 数和定价计算费用 */
-function calcCost(tokens: number, pricePerMillion: number): number {
-    return (tokens / 1_000_000) * pricePerMillion;
-}
-
-// ---------------------------------------------------------------------------
 // 扩展入口
 // ---------------------------------------------------------------------------
 export default function (pi: ExtensionAPI) {
@@ -65,12 +51,6 @@ export default function (pi: ExtensionAPI) {
                             totalCacheWrite += usage.cacheWrite;
                         }
                     }
-
-                    // ── 按 DeepSeek v4 pro 人民币定价计算费用 ───────
-                    const costRmb =
-                        calcCost(totalInput, PRICING.inputUncached) +
-                        calcCost(totalCacheRead, PRICING.inputCached) +
-                        calcCost(totalOutput, PRICING.output);
 
                     // ── 上下文使用 ──────────────────────────────────
                     const contextUsage = ctx.getContextUsage();
@@ -110,7 +90,6 @@ export default function (pi: ExtensionAPI) {
                         totalOutput,
                         totalCacheRead,
                         totalCacheWrite,
-                        costRmb,
                         usingSubscription,
                         contextTokens,
                         contextWindow,

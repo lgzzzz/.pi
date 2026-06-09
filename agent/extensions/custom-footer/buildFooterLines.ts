@@ -10,6 +10,22 @@ import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
 // ---------------------------------------------------------------------------
+// 定价与费用计算
+// ---------------------------------------------------------------------------
+
+/** DeepSeek v4 pro 人民币定价（每百万 tokens） */
+const PRICING = {
+    inputUncached: 2,    // 未命中缓存：2 元/百万 tokens
+    inputCached: 0.025,  // 命中缓存：0.025 元/百万 tokens
+    output: 6,           // 输出：6 元/百万 tokens
+} as const;
+
+/** 根据 token 数和定价计算费用 */
+function calcCost(tokens: number, pricePerMillion: number): number {
+    return (tokens / 1_000_000) * pricePerMillion;
+}
+
+// ---------------------------------------------------------------------------
 // 工具函数
 // ---------------------------------------------------------------------------
 
@@ -64,8 +80,6 @@ export interface FooterLinesOptions {
     totalCacheWrite: number;
 
     // ── 费用 ──
-    /** 人民币总费用 */
-    costRmb: number;
     /** 是否使用 OAuth 订阅 */
     usingSubscription: boolean;
 
@@ -115,13 +129,17 @@ export function buildFooterLines(opts: FooterLinesOptions): string[] {
     const totalPromptTokens = opts.totalInput + opts.totalCacheRead;
     if (totalPromptTokens > 0) {
         const cacheHitRate = (opts.totalCacheRead / totalPromptTokens) * 100;
-        statsParts.push(`CH${cacheHitRate.toFixed(1)}%`);
+        statsParts.push(`${cacheHitRate.toFixed(1)}%`);
     }
 
-    // 费用
-    if (opts.costRmb || opts.usingSubscription) {
+    // 费用（由 buildFooterLines 内部根据 token 数计算）
+    const costRmb =
+        calcCost(opts.totalInput, PRICING.inputUncached) +
+        calcCost(opts.totalCacheRead, PRICING.inputCached) +
+        calcCost(opts.totalOutput, PRICING.output);
+    if (costRmb || opts.usingSubscription) {
         const sub = opts.usingSubscription ? " (sub)" : "";
-        statsParts.push(`¥${opts.costRmb.toFixed(3)}${sub}`);
+        statsParts.push(`¥${costRmb.toFixed(3)}${sub}`);
     }
 
     // 上下文使用量（实际 token 数）

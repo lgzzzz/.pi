@@ -95,17 +95,6 @@ export default function (pi: ExtensionAPI) {
     // 缓存的 markdown 主题 — 在所有组件中复用
     const markdownTheme = getMarkdownTheme();
 
-    // DeepSeek v4 pro 人民币定价（每百万 tokens）
-    const PRICING = {
-        inputUncached: 2,
-        inputCached: 0.025,
-        output: 6,
-    } as const;
-
-    function calcCost(tokens: number, pricePerMillion: number): number {
-        return (tokens / 1_000_000) * pricePerMillion;
-    }
-
     // -- 工具函数 ------------------------------------------------------------
 
     /** 若存在覆盖层 TUI，则请求其重新渲染。 */
@@ -176,11 +165,6 @@ export default function (pi: ExtensionAPI) {
                 }
             }
 
-            const costRmb =
-                calcCost(totalInput, PRICING.inputUncached) +
-                calcCost(totalCacheRead, PRICING.inputCached) +
-                calcCost(totalOutput, PRICING.output);
-
             const contextUsage = c.getContextUsage();
             const contextWindow =
                 contextUsage?.contextWindow ??
@@ -223,7 +207,6 @@ export default function (pi: ExtensionAPI) {
                 totalOutput,
                 totalCacheRead,
                 totalCacheWrite,
-                costRmb,
                 usingSubscription,
                 contextTokens,
                 contextWindow,
