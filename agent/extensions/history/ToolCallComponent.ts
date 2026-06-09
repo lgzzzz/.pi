@@ -27,7 +27,7 @@ import {
     type Component,
 } from "@earendil-works/pi-tui";
 import { getTheme, type Theme } from "./theme.js";
-import { formatArgsPreview } from "./helpers.js";
+import { formatArgsPreview, buildCollapsedToolPreview } from "./helpers.js";
 import { ARGS_PREVIEW_MAX_LENGTH, RESULT_PREVIEW_LINES } from "./constants.js";
 
 // ---------------------------------------------------------------------------
@@ -236,20 +236,12 @@ export class ToolCallComponent extends Container {
 
     /** 构建折叠的结果预览：前 N 行 + 展开提示。 */
     private buildCollapsedResult(): void {
-        const allLines = this.resultContent.split("\n");
-        const previewLines = allLines.slice(0, RESULT_PREVIEW_LINES);
-        const preview = previewLines
-            .map((line) => getTheme().fg("toolOutput", line))
-            .join("\n");
-
+        const preview = buildCollapsedToolPreview(
+            this.resultContent,
+            RESULT_PREVIEW_LINES,
+            (color, s) => getTheme().fg(color, s),
+            `(${keyHint("app.tools.expand", "to expand")})`,
+        );
         this.addChild(new Text(preview, 2, 0));
-
-        if (allLines.length > RESULT_PREVIEW_LINES) {
-            const hint = getTheme().fg(
-                "muted",
-                `(${keyHint("app.tools.expand", "to expand")})`,
-            );
-            this.addChild(new Text(hint, 2, 0));
-        }
     }
 }
