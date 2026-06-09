@@ -8,119 +8,127 @@
  * executes: proxychains4 -q junie 'description'
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme, keyHint } from "@earendil-works/pi-coding-agent";
-import { Container, Markdown, Text, type Component } from "@earendil-works/pi-tui";
-import { Type } from "typebox";
+import { Container, Markdown, Text } from "@earendil-works/pi-tui";
+import { Type, type Static } from "typebox";
 import { buildCollapsedToolPreview } from "./history/helpers.js";
 
 /** Number of lines to show in collapsed preview */
 const JUNIE_PREVIEW_LINES = 8;
 
 // ---------------------------------------------------------------------------
-// 可复用的渲染函数（供 history 扩展等复用）
+// Schema & Types
 // ---------------------------------------------------------------------------
 
-/** 与 pi registerTool renderCall 兼容的最小 theme 接口 */
-export interface RenderTheme {
-    fg(color: string, text: string): string;
-    bold(text: string): string;
+const junieAiSchema = Type.Object({
+    description: Type.String({
+        description:
+            "Description of what junie_ai should do. Be specific about the task.",
+    }),
+});
+
+export type JunieAiToolInput = Static<typeof junieAiSchema>;
+
+/** Details returned by the junie_ai tool execution */
+export interface JunieAiToolDetails {
+    exitCode?: number | null;
+    stderr?: string;
+    error?: string;
+    status?: string;
 }
 
-/** 与 pi renderResult options 一致的渲染选项 */
-export interface RenderResultOptions {
-    expanded: boolean;
-    isPartial: boolean;
+/** Options for shell command execution used by the junie_ai tool */
+export interface JunieAiExecOptions {
+    signal?: AbortSignal;
+    timeout?: number;
+    cwd?: string;
 }
+
+/** Result from a shell command execution */
+export interface JunieAiExecResult {
+    code: number | null;
+    stdout: string;
+    stderr: string;
+    killed: boolean;
+}
+
+/** Options for createJunieAiToolDefinition */
+export interface JunieAiToolOptions {
+    /**
+     * Function to execute shell commands.
+     * Default uses Node's child_process.exec via sh -c.
+     * When used inside a pi extension, pass a wrapper around pi.exec().
+     */
+    exec?: (command: string, args: string[], options?: JunieAiExecOptions) => Promise<JunieAiExecResult>;
+}
+
+// ---------------------------------------------------------------------------
+// Default exec implementation (for standalone / history-viewer use)
+// ---------------------------------------------------------------------------
+
+import { exec as cpExec } from "node:child_process";
+import { promisify } from "node:util";
+
+const cpExecAsync = promisify(cpExec);
+
+async function defaultExec(
+    command: string,
+    args: string[],
+    options?: JunieAiExecOptions,
+): Promise<JunieAiExecResult> {
+    const shellCmd = [command, ...args.map((a) => `'${a.replace(/'/g, "'\\''")}'`)].join(" ");
+    try {
+        const result = await cpExecAsync(shellCmd, {
+            timeout: options?.timeout ?? 3600000,
+            cwd: options?.cwd,
+            signal: options?.signal,
+            maxBuffer: 10 * 1024 * 1024,
+        });
+        return {
+            code: 0,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            killed: false,
+        };
+    } catch (error: any) {
+        if (error.killed || error.signal) {
+            return {
+                code: error.code ?? null,
+                stdout: error.stdout ?? "",
+                stderr: error.stderr ?? "",
+                killed: true,
+            };
+        }
+        throw error;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tool Definition Factory
+// ---------------------------------------------------------------------------
 
 /**
- * 渲染 junie_ai 工具调用头部。
- * 返回一个 Text 组件：粗体工具名 + 截断的描述参数预览。
+ * Create a ToolDefinition for the junie_ai tool.
+ *
+ * Follows the same pattern as pi's built-in createReadToolDefinition:
+ * - Pure factory function returning a complete ToolDefinition
+ * - Accepts optional overrides for shell execution (like ReadToolOptions.operations)
+ * - Contains renderCall / renderResult for unified rendering in ToolExecutionComponent
+ *
+ * Usage in a pi extension:
+ *   pi.registerTool(createJunieAiToolDefinition({ exec: (cmd, args, opts) => pi.exec(cmd, args, opts) }));
+ *
+ * Usage in history viewer (render-only, no execution needed):
+ *   const def = createJunieAiToolDefinition();
+ *   new ToolExecutionComponent("junie_ai", id, args, {}, def, tui, cwd);
  */
-export function renderJunieCall(args: unknown, theme: RenderTheme): Component {
-    let text = theme.fg("toolTitle", theme.bold("junie_ai"));
+export function createJunieAiToolDefinition(
+    options?: JunieAiToolOptions,
+): ToolDefinition<typeof junieAiSchema, JunieAiToolDetails> {
+    const execFn = options?.exec ?? defaultExec;
 
-    if (
-        typeof (args as Record<string, unknown>).description === "string" &&
-        ((args as Record<string, unknown>).description as string).trim()
-    ) {
-        const desc = ((args as Record<string, unknown>).description as string);
-        const preview = desc.length > 120 ? desc.slice(0, 120) + "..." : desc;
-        text += "\n" + theme.fg("muted", preview);
-    }
-
-    return new Text(text, 0, 0);
-}
-
-/**
- * 渲染 junie_ai 工具结果。
- * 根据 isPartial / error / empty / expanded / collapsed 状态返回不同组件。
- */
-export function renderJunieResult(
-    result: unknown,
-    options: RenderResultOptions,
-    theme: RenderTheme,
-): Component {
-    // Partial / streaming state: show loading indicator
-    if (options.isPartial) {
-        return new Text(theme.fg("warning", "Calling Junie AI..."), 0, 0);
-    }
-
-    // Error state: show error message
-    const details = (result as Record<string, unknown> | undefined)?.details as
-        | Record<string, unknown>
-        | undefined;
-    if (details?.error) {
-        return new Text(
-            theme.fg("error", `Error: ${details.error}`),
-            0,
-            0,
-        );
-    }
-
-    // Extract text content from result
-    const content = ((result as Record<string, unknown> | undefined)?.content ?? []) as Array<{ type: string; text?: string }>;
-    const textContent = content
-        .filter((c) => c.type === "text")
-        .map((c) => c.text || "")
-        .join("\n");
-
-    // Empty output
-    if (!textContent.trim()) {
-        return new Text(theme.fg("muted", "(No output)"), 0, 0);
-    }
-
-    if (options.expanded) {
-        const container = new Container();
-        container.addChild(
-            new Markdown(textContent, 0, 0, getMarkdownTheme()),
-        );
-        container.addChild(
-            new Text(
-                `\n(${keyHint("app.tools.expand", "to collapse")})`,
-                0,
-                0,
-            ),
-        );
-        return container;
-    }
-
-    // Collapsed view: show line-truncated preview
-    const text = buildCollapsedToolPreview(
-        textContent,
-        JUNIE_PREVIEW_LINES,
-        (color, s) => theme.fg(color, s),
-        `(${keyHint("app.tools.expand", "to expand")})`,
-    );
-    return new Text(text, 0, 0);
-}
-
-// ---------------------------------------------------------------------------
-// 扩展入口
-// ---------------------------------------------------------------------------
-
-export default function (pi: ExtensionAPI) {
-    pi.registerTool({
+    return {
         name: "junie_ai",
         label: "Junie AI",
         description:
@@ -131,19 +139,80 @@ export default function (pi: ExtensionAPI) {
         promptGuidelines: [
             "Use junie_ai when you need to write documentation, or create execution plans. Provide a clear, detailed description in the description parameter.",
         ],
-        parameters: Type.Object({
-            description: Type.String({
-                description:
-                    "Description of what junie_ai should do. Be specific about the task.",
-            }),
-        }),
+        parameters: junieAiSchema,
 
         renderCall(args, theme, _context) {
-            return renderJunieCall(args, theme);
+            let text = theme.fg("toolTitle", theme.bold("junie_ai"));
+
+            if (typeof args.description === "string" && args.description.trim()) {
+                const preview =
+                    args.description.length > 120
+                        ? args.description.slice(0, 120) + "..."
+                        : args.description;
+                text += "\n" + theme.fg("muted", preview);
+            }
+
+            return new Text(text, 0, 0);
         },
 
         renderResult(result, options, theme, _context) {
-            return renderJunieResult(result, options, theme);
+            // Partial / streaming state: show loading indicator
+            if (options.isPartial) {
+                return new Text(
+                    theme.fg("warning", "Calling Junie AI..."),
+                    0,
+                    0,
+                );
+            }
+
+            // Error state: show error message
+            const details = result.details;
+            if (details?.error) {
+                return new Text(
+                    theme.fg("error", `Error: ${details.error}`),
+                    0,
+                    0,
+                );
+            }
+
+            // Extract text content from result
+            const content = (result.content ?? []) as Array<{
+                type: string;
+                text?: string;
+            }>;
+            const textContent = content
+                .filter((c) => c.type === "text")
+                .map((c) => c.text || "")
+                .join("\n");
+
+            // Empty output
+            if (!textContent.trim()) {
+                return new Text(theme.fg("muted", "(No output)"), 0, 0);
+            }
+
+            if (options.expanded) {
+                const container = new Container();
+                container.addChild(
+                    new Markdown(textContent, 0, 0, getMarkdownTheme()),
+                );
+                container.addChild(
+                    new Text(
+                        `\n(${keyHint("app.tools.expand", "to collapse")})`,
+                        0,
+                        0,
+                    ),
+                );
+                return container;
+            }
+
+            // Collapsed view: show line-truncated preview
+            const preview = buildCollapsedToolPreview(
+                textContent,
+                JUNIE_PREVIEW_LINES,
+                (color, s) => theme.fg(color as any, s),
+                `(${keyHint("app.tools.expand", "to expand")})`,
+            );
+            return new Text(preview, 0, 0);
         },
 
         async execute(_toolCallId, params, signal, onUpdate, ctx) {
@@ -162,19 +231,17 @@ export default function (pi: ExtensionAPI) {
             }
 
             // Execute the proxychains4 junie command
-            const command = `proxychains4 -q junie '${description.replace(/'/g, "'\\''")}'`;
-
             onUpdate?.({
                 content: [{ type: "text", text: `Calling Junie AI...` }],
                 details: { status: "executing" },
             });
 
             try {
-                const result = await pi.exec("sh", ["-c", command], {
-                    signal,
-                    timeout: 3600000,
-                    cwd: ctx.cwd,
-                });
+                const result = await execFn(
+                    "proxychains4",
+                    ["-q", "junie", description],
+                    { signal, timeout: 3600000, cwd: ctx.cwd },
+                );
 
                 if (result.killed) {
                     return {
@@ -184,13 +251,19 @@ export default function (pi: ExtensionAPI) {
                                 text: "Error: Command was killed (timeout or cancellation)",
                             },
                         ],
-                        details: { error: "timeout", exitCode: result.code },
+                        details: {
+                            error: "timeout",
+                            exitCode: result.code,
+                        },
                     };
                 }
 
                 return {
                     content: [
-                        { type: "text", text: result.stdout || "(No output)" },
+                        {
+                            type: "text",
+                            text: result.stdout || "(No output)",
+                        },
                     ],
                     details: {
                         exitCode: result.code,
@@ -211,5 +284,52 @@ export default function (pi: ExtensionAPI) {
                 };
             }
         },
-    });
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Extensible exec adapters
+// ---------------------------------------------------------------------------
+
+/**
+ * Create an exec adapter that wraps a pi ExtensionAPI.exec call.
+ *
+ * Usage:
+ *   const exec = createPiExecAdapter(pi);
+ *   const def = createJunieAiToolDefinition({ exec });
+ */
+export function createPiExecAdapter(
+    piExec: (
+        command: string,
+        args: string[],
+        options?: { signal?: AbortSignal; timeout?: number; cwd?: string },
+    ) => Promise<{ code?: number; stdout?: string; stderr?: string; killed?: boolean }>,
+): (command: string, args: string[], options?: JunieAiExecOptions) => Promise<JunieAiExecResult> {
+    return async (command, args, options) => {
+        // Build shell command: proxychains4 -q junie '<description>'
+        const shellCmd = [command, ...args.map((a) => `'${a.replace(/'/g, "'\\''")}'`)].join(" ");
+        const result = await piExec("sh", ["-c", shellCmd], {
+            signal: options?.signal,
+            timeout: options?.timeout,
+            cwd: options?.cwd,
+        });
+        return {
+            code: result.code ?? null,
+            stdout: result.stdout ?? "",
+            stderr: result.stderr ?? "",
+            killed: result.killed ?? false,
+        };
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Extension entry point
+// ---------------------------------------------------------------------------
+
+export default function (pi: ExtensionAPI) {
+    const exec = createPiExecAdapter((cmd, args, opts) =>
+        pi.exec(cmd, args, opts),
+    );
+
+    pi.registerTool(createJunieAiToolDefinition({ exec }));
 }
