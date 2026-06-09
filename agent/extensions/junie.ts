@@ -64,47 +64,6 @@ export interface JunieAiToolOptions {
 }
 
 // ---------------------------------------------------------------------------
-// Default exec implementation (for standalone / history-viewer use)
-// ---------------------------------------------------------------------------
-
-import { exec as cpExec } from "node:child_process";
-import { promisify } from "node:util";
-
-const cpExecAsync = promisify(cpExec);
-
-async function defaultExec(
-    command: string,
-    args: string[],
-    options?: JunieAiExecOptions,
-): Promise<JunieAiExecResult> {
-    const shellCmd = [command, ...args.map((a) => `'${a.replace(/'/g, "'\\''")}'`)].join(" ");
-    try {
-        const result = await cpExecAsync(shellCmd, {
-            timeout: options?.timeout ?? 3600000,
-            cwd: options?.cwd,
-            signal: options?.signal,
-            maxBuffer: 10 * 1024 * 1024,
-        });
-        return {
-            code: 0,
-            stdout: result.stdout,
-            stderr: result.stderr,
-            killed: false,
-        };
-    } catch (error: any) {
-        if (error.killed || error.signal) {
-            return {
-                code: error.code ?? null,
-                stdout: error.stdout ?? "",
-                stderr: error.stderr ?? "",
-                killed: true,
-            };
-        }
-        throw error;
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Tool Definition Factory
 // ---------------------------------------------------------------------------
 
@@ -119,14 +78,14 @@ async function defaultExec(
  * Usage in a pi extension:
  *   pi.registerTool(createJunieAiToolDefinition({ exec: (cmd, args, opts) => pi.exec(cmd, args, opts) }));
  *
- * Usage in history viewer (render-only, no execution needed):
+ * Usage in history viewer (render-only):
  *   const def = createJunieAiToolDefinition();
  *   new ToolExecutionComponent("junie_ai", id, args, {}, def, tui, cwd);
  */
 export function createJunieAiToolDefinition(
     options?: JunieAiToolOptions,
 ): ToolDefinition<typeof junieAiSchema, JunieAiToolDetails> {
-    const execFn = options?.exec ?? defaultExec;
+    const execFn = options?.exec;
 
     return {
         name: "junie_ai",
@@ -227,6 +186,19 @@ export function createJunieAiToolDefinition(
                         },
                     ],
                     details: { error: "Empty description provided" },
+                };
+            }
+
+            // Require an exec function to be configured
+            if (!execFn) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: "Error: No exec function configured. When creating the junie_ai tool definition, pass { exec } in JunieAiToolOptions (e.g. createJunieAiToolDefinition({ exec: createPiExecAdapter(pi) })).",
+                        },
+                    ],
+                    details: { error: "No exec function configured" },
                 };
             }
 
