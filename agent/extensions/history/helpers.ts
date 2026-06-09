@@ -15,6 +15,50 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 // ---------------------------------------------------------------------------
+// Usage 聚合
+// ---------------------------------------------------------------------------
+
+/** 从 session entries 聚合得到的 usage 统计。 */
+export interface UsageTotals {
+    totalInput: number;
+    totalOutput: number;
+    totalCacheRead: number;
+    totalCacheWrite: number;
+}
+
+/**
+ * 从 session entries 列表中聚合所有 assistant 消息的 usage 统计。
+ *
+ * 用法：提供给 buildFooterLines 或任何需要展示 token 统计的位置使用。
+ */
+export function aggregateUsage(
+    entries: ReadonlyArray<{
+        type: string;
+        message?: {
+            role: string;
+            usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+        };
+    }>,
+): UsageTotals {
+    let totalInput = 0;
+    let totalOutput = 0;
+    let totalCacheRead = 0;
+    let totalCacheWrite = 0;
+    for (const entry of entries) {
+        if (entry.type === "message" && entry.message?.role === "assistant") {
+            const usage = entry.message.usage;
+            if (usage) {
+                totalInput += usage.input ?? 0;
+                totalOutput += usage.output ?? 0;
+                totalCacheRead += usage.cacheRead ?? 0;
+                totalCacheWrite += usage.cacheWrite ?? 0;
+            }
+        }
+    }
+    return { totalInput, totalOutput, totalCacheRead, totalCacheWrite };
+}
+
+// ---------------------------------------------------------------------------
 // 参数格式化
 // ---------------------------------------------------------------------------
 
