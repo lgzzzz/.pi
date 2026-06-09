@@ -8,5 +8,8 @@
     "enabled": false
   },
   "defaultProvider": "opencode-go",
-  "defaultModel": "deepseek-v4-pro"
+  "defaultModel": "deepseek-v4-pro",
+  "terminal": {
+    "clearOnShrink": true
+  }
 }
