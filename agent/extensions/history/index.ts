@@ -7,9 +7,8 @@
  * 功能：
  *   - 渲染用户消息、助手消息以及工具调用/结果
  *   - 使用箭头键 / 鼠标滚轮滚动（3 行和整页增量）
- *   - 内置工具（read/edit/write/bash）使用 pi 的原生 ToolExecutionComponent
- *     进行富文本 diff/代码渲染
- *   - 其他工具使用通用的 ToolCallComponent，支持折叠/展开结果
+ *   - 所有工具（内置 read/edit/write/bash 及 junie_ai 等）统一使用 pi 的原生
+ *     ToolExecutionComponent 进行富文本 diff/代码渲染
  *   - Ctrl+O 同时切换所有工具结果的展开/折叠状态
  *   - Agent 工作时在内容底部显示旋转 working 指示器，与 pi 内置 Loader 一致
  *
@@ -18,7 +17,7 @@
  *   constants.ts           — 共享常量（魔数、ANSI 序列、旋转帧）
  *   theme.ts               — 主题访问辅助函数
  *   helpers.ts             — 格式化、内容提取、工具定义工厂
- *   ToolCallComponent.ts   — 通用工具调用/结果渲染（用于非内置工具）
+
  *   HistoryViewer.ts       — 可滚动视口控制器（渲染 + 输入处理）
  *   mouse.ts               — SGR 鼠标滚动事件解析器
  */
@@ -39,9 +38,8 @@ import {
     ALT_SCREEN_ENTER,
     ALT_SCREEN_EXIT,
 } from "./constants.js";
-import { extractTextFromContent, extractUserMessageText, createBuiltInToolDefinition, aggregateUsage } from "./helpers.js";
-import { ToolCallComponent } from "./ToolCallComponent.js";
-import { renderJunieCall, renderJunieResult } from "../junie.js";
+import { extractUserMessageText, createBuiltInToolDefinition, aggregateUsage } from "./helpers.js";
+import { createJunieAiToolDefinition } from "../junie.js";
 import { HistoryViewer } from "./HistoryViewer.js";
 import { parseSGRMouseScroll } from "./mouse.js";
 import { loadConfig } from "./config.js";
@@ -55,7 +53,7 @@ import { execSync } from "node:child_process";
 // ---------------------------------------------------------------------------
 
 /** 将 toolCallId 映射到对应的渲染组件。 */
-type ToolRegistry = Map<string, ToolCallComponent | ToolExecutionComponent>;
+type ToolRegistry = Map<string, ToolExecutionComponent>;
 
 // ---------------------------------------------------------------------------
 // 扩展工厂
@@ -85,9 +83,6 @@ export default function (pi: ExtensionAPI) {
 
     /** Agent 是否正在工作中（agent_start 到 agent_end 之间）。 */
     let isWorking: boolean = false;
-
-    /** 当前正在执行的工具名称（用于 working 指示器）。 */
-    let currentToolName: string = "";
 
     /** 当前扩展上下文（在 agent_start 时捕获，供 footer 渲染使用）。 */
     let currentCtx: ExtensionContext | null = null;
@@ -126,8 +121,8 @@ export default function (pi: ExtensionAPI) {
      * 返回当前 working 状态快照，供 HistoryViewer 轮询。
      * 返回新对象以避免引用问题。
      */
-    function getWorkingStatus(): { isWorking: boolean; currentTool: string } {
-        return { isWorking, currentTool: currentToolName };
+    function getWorkingStatus(): { isWorking: boolean } {
+        return { isWorking };
     }
 
     // -- 覆盖层管理 ----------------------------------------------------------
@@ -292,7 +287,6 @@ export default function (pi: ExtensionAPI) {
         resetTurnState(ctx.cwd);
         currentCtx = ctx;
         isWorking = true;
-        currentToolName = "";
         requestRender();
 
         // 根据配置文件决定是否自动打开历史查看器
@@ -305,7 +299,6 @@ export default function (pi: ExtensionAPI) {
     // Agent 处理完成时清除 working 状态
     pi.on("agent_end", async () => {
         isWorking = false;
-        currentToolName = "";
         requestRender();
     });
 
@@ -383,17 +376,40 @@ export default function (pi: ExtensionAPI) {
         requestRender();
     });
 
-    // -- 工具执行生命周期 ----------------------------------------------------
-
-    /** tool_execution_start：更新当前工具名称。 */
+    // 将 tool_execution_start 的组件创建逻辑接上
     pi.on("tool_execution_start", (event) => {
-        currentToolName = event.toolName;
+        createToolComponentForEvent(
+            event.toolName,
+            event.toolCallId,
+            event.args,
+        );
+    });
+
+    /** tool_execution_update：将部分/流式结果推送到组件。 */
+    pi.on("tool_execution_update", (event) => {
+        const component = toolRegistry.get(event.toolCallId);
+        if (!component || !event.partialResult) return;
+        component.updateResult(
+            {
+                content: event.partialResult.content || [],
+                isError: false,
+            },
+            true, // isPartial
+        );
         requestRender();
     });
 
-    /** tool_execution_end：清除当前工具名称。 */
-    pi.on("tool_execution_end", () => {
-        currentToolName = "";
+    /** tool_execution_end：将最终的工具结果推送到组件。 */
+    pi.on("tool_execution_end", (event) => {
+        const component = toolRegistry.get(event.toolCallId);
+        if (!component || !event.result) return;
+        component.updateResult(
+            {
+                content: event.result.content || [],
+                isError: event.isError,
+            },
+            false, // 最终结果，非部分更新
+        );
         requestRender();
     });
 
@@ -409,21 +425,12 @@ export default function (pi: ExtensionAPI) {
         requestRender();
     }
 
-    // 将 tool_execution_start 的组件创建逻辑接上
-    pi.on("tool_execution_start", (event) => {
-        createToolComponentForEvent(
-            event.toolName,
-            event.toolCallId,
-            event.args,
-        );
-    });
-
     /** 根据工具类型创建合适的组件。 */
     function createToolComponent(
         toolName: string,
         toolCallId: string,
         args: unknown,
-    ): ToolCallComponent | ToolExecutionComponent {
+    ): ToolExecutionComponent {
         if (BUILT_IN_TOOL_NAMES.has(toolName)) {
             const toolDef = createBuiltInToolDefinition(toolName, workingDir);
             if (toolDef) {
@@ -442,67 +449,35 @@ export default function (pi: ExtensionAPI) {
             }
         }
 
-        // junie_ai：使用自定义渲染器，与主界面保持一致
+        // junie_ai：使用 ToolExecutionComponent 与内置工具保持一致的渲染管线
         if (toolName === "junie_ai") {
-            return new ToolCallComponent(
+            const toolDef = createJunieAiToolDefinition();
+            const component = new ToolExecutionComponent(
                 toolName,
+                toolCallId,
                 args,
-                renderJunieCall,
-                renderJunieResult,
+                undefined, // options
+                toolDef as any,
+                createTuiWrapper(),
+                workingDir,
             );
+            component.markExecutionStarted();
+            component.setArgsComplete();
+            return component;
         }
 
-        // 回退：为非内置工具使用通用组件
-        return new ToolCallComponent(toolName, args);
+        // 回退：使用 ToolExecutionComponent 的内置 fallback 渲染
+        const component = new ToolExecutionComponent(
+            toolName,
+            toolCallId,
+            args,
+            undefined,
+            undefined,
+            createTuiWrapper(),
+            workingDir,
+        );
+        component.markExecutionStarted();
+        component.setArgsComplete();
+        return component;
     }
-
-    /** tool_execution_update：将部分/流式结果推送到组件。 */
-    pi.on("tool_execution_update", (event) => {
-        const component = toolRegistry.get(event.toolCallId);
-        if (!component || !event.partialResult) return;
-
-        if (component instanceof ToolExecutionComponent) {
-            component.updateResult(
-                {
-                    content: event.partialResult.content || [],
-                    isError: false,
-                },
-                true, // isPartial
-            );
-        } else if (component.hasCustomResultRenderer) {
-            // 使用自定义渲染器的工具（如 junie_ai）：传递完整结果对象
-            component.updateFullResult(event.partialResult, true);
-        } else {
-            component.updateResult(
-                extractTextFromContent(event.partialResult.content || []),
-            );
-        }
-
-        requestRender();
-    });
-
-    /** tool_execution_end：将最终的工具结果推送到组件。 */
-    pi.on("tool_execution_end", (event) => {
-        const component = toolRegistry.get(event.toolCallId);
-        if (!component || !event.result) return;
-
-        if (component instanceof ToolExecutionComponent) {
-            component.updateResult(
-                {
-                    content: event.result.content || [],
-                    isError: event.isError,
-                },
-                false, // 最终结果，非部分更新
-            );
-        } else if (component.hasCustomResultRenderer) {
-            // 使用自定义渲染器的工具（如 junie_ai）：传递完整结果对象
-            component.updateFullResult(event.result, false);
-        } else {
-            component.updateResult(
-                extractTextFromContent(event.result.content || []),
-            );
-        }
-
-        requestRender();
-    });
 }
