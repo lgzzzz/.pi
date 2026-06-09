@@ -13,6 +13,7 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { buildFooterLines } from "./buildFooterLines.js";
+import { aggregateUsage } from "../history/helpers.js";
 
 // ---------------------------------------------------------------------------
 // 扩展入口
@@ -34,23 +35,8 @@ export default function (pi: ExtensionAPI) {
                 },
                 render(width: number): string[] {
                     // ── 聚合所有 assistant 消息的 usage ────────────
-                    let totalInput = 0;
-                    let totalOutput = 0;
-                    let totalCacheRead = 0;
-                    let totalCacheWrite = 0;
-
-                    for (const entry of ctx.sessionManager.getEntries()) {
-                        if (
-                            entry.type === "message" &&
-                            entry.message.role === "assistant"
-                        ) {
-                            const usage = entry.message.usage;
-                            totalInput += usage.input;
-                            totalOutput += usage.output;
-                            totalCacheRead += usage.cacheRead;
-                            totalCacheWrite += usage.cacheWrite;
-                        }
-                    }
+                    const { totalInput, totalOutput, totalCacheRead, totalCacheWrite } =
+                        aggregateUsage(ctx.sessionManager.getEntries());
 
                     // ── 上下文使用 ──────────────────────────────────
                     const contextUsage = ctx.getContextUsage();
