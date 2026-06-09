@@ -59,59 +59,8 @@ export function aggregateUsage(
 }
 
 // ---------------------------------------------------------------------------
-// 参数格式化
-// ---------------------------------------------------------------------------
-
-/**
- * 将工具参数格式化为紧凑的预览字符串。
- *
- * - 标量值直接字符串化。
- * - 对象渲染为 "键: 值" 行（每个条目一行）。
- * - 复杂值（嵌套对象）进行 JSON 序列化。
- *
- * 由 ToolCallComponent 用于在历史视图中显示工具调用参数。
- */
-export function formatArgsPreview(args: unknown): string {
-    if (args === null || args === undefined) return "";
-    if (typeof args === "string") return args;
-    if (typeof args !== "object" || Array.isArray(args)) return String(args);
-
-    const entries = Object.entries(args as Record<string, unknown>);
-    if (entries.length === 0) return "";
-
-    return entries
-        .map(([key, value]) => {
-            const display = typeof value === "object"
-                ? JSON.stringify(value)
-                : String(value ?? "");
-            return `${key}: ${display}`;
-        })
-        .join("\n");
-}
-
-// ---------------------------------------------------------------------------
 // 内容提取
 // ---------------------------------------------------------------------------
-
-/**
- * 从 pi 内容数组中提取可显示的文本。
- *
- * 内容数组包含 TextContent 和 ImageContent 项。
- * 文本项被拼接在一起；图像被替换为 "[Image]" 占位符。
- */
-export function extractTextFromContent(content: unknown[]): string {
-    const parts: string[] = [];
-    for (const item of content) {
-        if (!item || typeof item !== "object" || !("type" in item)) continue;
-        const typed = item as { type: string; text?: string };
-        if (typed.type === "text" && typed.text) {
-            parts.push(typed.text);
-        } else if (typed.type === "image") {
-            parts.push("[Image]");
-        }
-    }
-    return parts.join("\n");
-}
 
 /**
  * 从消息的 content 字段中提取面向用户的文本。

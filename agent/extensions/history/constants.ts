@@ -4,12 +4,6 @@
  * 整个历史查看器组件使用的所有魔数、ANSI 转义序列和配置值。
  */
 
-/** 工具参数预览在截断前显示的最大字符数。 */
-export const ARGS_PREVIEW_MAX_LENGTH = 120;
-
-/** 折叠的工具结果预览中显示的行数。 */
-export const RESULT_PREVIEW_LINES = 7;
-
 /** 每次按上/下箭头滚动的行数。 */
 export const SCROLL_LINE_STEP = 3;
 

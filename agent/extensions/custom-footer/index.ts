@@ -90,12 +90,4 @@ export default function (pi: ExtensionAPI) {
             };
         });
     });
-
-    // 模型或 thinking level 变化时请求重新渲染
-    pi.on("model_select", () => {
-        // footer 在下次 render 时会自动反映新的 ctx.model
-    });
-    pi.on("thinking_level_select", () => {
-        // footer 在下次 render 时会自动反映新的 thinking level
-    });
 }
