@@ -164,3 +164,39 @@ export function createBuiltInToolDefinition(name: string, cwd: string): ToolDefi
         default:      return undefined;
     }
 }
+
+// ---------------------------------------------------------------------------
+// 折叠预览构建
+// ---------------------------------------------------------------------------
+
+/**
+ * 构建工具结果的折叠预览字符串。
+ *
+ * 若内容行数未超过 maxLines，则返回所有行（每条用 toolOutput 颜色着色）。
+ * 若超过，则仅返回前 maxLines 行 + muted 颜色的展开提示行。
+ *
+ * @param text          要预览的原始文本内容
+ * @param maxLines      预览模式下显示的最大行数
+ * @param fg            前景色着色函数，如 theme.fg
+ * @param expandHint    展开提示文本（如 keyHint 输出），若为空则不追加提示
+ * @returns             可渲染的 ANSI 字符串
+ */
+export function buildCollapsedToolPreview(
+    text: string,
+    maxLines: number,
+    fg: (color: string, s: string) => string,
+    expandHint: string,
+): string {
+    const lines = text.split("\n");
+    if (lines.length <= maxLines) {
+        return lines.map((l) => fg("toolOutput", l)).join("\n");
+    }
+
+    const preview = lines
+        .slice(0, maxLines)
+        .map((l) => fg("toolOutput", l))
+        .join("\n");
+
+    if (!expandHint) return preview;
+    return `${preview}\n${fg("muted", expandHint)}`;
+}
