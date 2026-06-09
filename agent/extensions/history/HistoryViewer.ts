@@ -32,14 +32,13 @@ import type {Component, TUI} from "@earendil-works/pi-tui";
 import {Key, matchesKey} from "@earendil-works/pi-tui";
 import {ToolExecutionComponent} from "@earendil-works/pi-coding-agent";
 import {SCROLL_LINE_STEP, SPINNER_FRAMES, SPINNER_INTERVAL_MS} from "./constants.js";
-import {ToolCallComponent} from "./ToolCallComponent.js";
 import {getTheme} from "./theme.js";
 
 /** 返回当前要渲染的消息/工具 Component 列表的函数。 */
 export type MessageListProvider = () => Component[];
 
 /** 返回当前 working 状态的函数。 */
-export type WorkingStatusProvider = () => { isWorking: boolean; currentTool: string };
+export type WorkingStatusProvider = () => { isWorking: boolean };
 
 /** 返回 footer 行数组（动态高度）的函数，接收当前渲染宽度。 */
 export type FooterLinesProvider = (width: number) => string[];
@@ -51,7 +50,7 @@ export class HistoryViewer {
     private tui: TUI | null = null;
     private scrollOffset: number = 0;
     private renderWidth: number = 0;
-    private viewportHeight: number = 0;
+    private renderHeight: number = 0;
     private totalContentLines: number = 0;
 
     /**
@@ -142,18 +141,17 @@ export class HistoryViewer {
      */
     handleInput(data: string): boolean {
         if (this.handleKeyboardNavigation(data)) return true;
-        if (this.handleToolToggle(data)) return true;
-        return false;
+        return this.handleToolToggle(data);
     }
 
     /**
      * 处理箭头键导航：
      *   上/下  → 滚动 SCROLL_LINE_STEP 行
-     *   左/右  → 滚动一页（viewportHeight 行）
+     *   左/右  → 滚动一页（renderHeight 行）
      */
     private handleKeyboardNavigation(data: string): boolean {
         const maxScroll = this.computeMaxScroll();
-        const pageSize = this.viewportHeight > 0 ? this.viewportHeight : 1;
+        const pageSize = this.renderHeight > 0 ? this.renderHeight : 1;
 
         let handled = false;
 
@@ -198,11 +196,7 @@ export class HistoryViewer {
         const messages = this.getMessages();
         if (messages.length === 0) return true;
 
-        if (this.renderWidth > 0) {
-            this.toggleAllWithPositionPreservation(messages);
-        } else {
-            this.toggleAll(messages);
-        }
+        this.toggleAllWithPositionPreservation(messages);
 
         return true;
     }
@@ -241,10 +235,10 @@ export class HistoryViewer {
      * 由一个空行分隔。
      */
     private computeMaxScroll(): number {
-        if (this.viewportHeight <= 0) return 0;
+        if (this.renderHeight <= 0) return 0;
         const footerHeight = this.getFooterHeight();
         const reservedRows = footerHeight > 0 ? footerHeight + 1 : 0; // +1 for separator
-        const messageAreaHeight = Math.max(1, this.viewportHeight - reservedRows);
+        const messageAreaHeight = Math.max(1, this.renderHeight - reservedRows);
         return Math.max(0, this.totalContentLines - messageAreaHeight);
     }
 
@@ -306,9 +300,9 @@ export class HistoryViewer {
         const {messageIndex, innerOffset} =
             this.findViewportAnchor(preOffsets);
 
-        // 执行所有切换
-        const toggled = this.toggleAllExpandable(messages);
-        if (!toggled) return;
+        // 统一将所有组件设置为 expanded，避免混合状态
+        const changed = this.setAllExpanded(messages);
+        if (!changed) return;
 
         // 在布局变化后恢复视口位置
         const postOffsets = this.computeMessageOffsets(
@@ -322,48 +316,21 @@ export class HistoryViewer {
     }
 
     /**
-     * 切换列表中所有可展开工具组件的展开/折叠状态。
-     * 若至少有一个组件被切换则返回 true。
+     * 统一将所有 ToolExecutionComponent 设置为 expanded 状态，
+     * 防止一部分已经展开而另一部分未展开的混合状态。
+     * 若至少有一个组件被变更则返回 true。
      */
-    private toggleAllExpandable(messages: Component[]): boolean {
-        let toggled = false;
+    private setAllExpanded(messages: Component[]): boolean {
+        let changed = false;
 
         for (const msg of messages) {
-            if (msg instanceof ToolCallComponent && msg.isExpandable()) {
-                msg.toggleExpand();
-                toggled = true;
-            } else if (msg instanceof ToolExecutionComponent) {
-                this.toggleBuiltInTool(msg);
-                toggled = true;
+            if (msg instanceof ToolExecutionComponent) {
+                msg.setExpanded(true);
+                changed = true;
             }
         }
 
-        return toggled;
-    }
-
-    /**
-     * 切换 ToolExecutionComponent 的展开/折叠状态。
-     *
-     * ToolExecutionComponent.expanded 在 TypeScript 层面是私有的，
-     * 但在运行时可以访问。我们读取当前状态，然后调用
-     * setExpanded 来翻转它。
-     */
-    private toggleBuiltInTool(component: ToolExecutionComponent): void {
-        const current = !!(
-            component as unknown as { expanded: boolean }
-        ).expanded;
-        component.setExpanded(!current);
-    }
-
-    /** 简单的全部切换，不保持位置（回退路径）。 */
-    private toggleAll(messages: Component[]): void {
-        for (const msg of messages) {
-            if (msg instanceof ToolCallComponent && msg.isExpandable()) {
-                msg.toggleExpand();
-            } else if (msg instanceof ToolExecutionComponent) {
-                this.toggleBuiltInTool(msg);
-            }
-        }
+        return changed;
     }
 
     // -- 渲染 ----------------------------------------------------------------
@@ -383,7 +350,7 @@ export class HistoryViewer {
      */
     render(width: number, viewportHeight: number): string[] {
         this.renderWidth = width;
-        this.viewportHeight = viewportHeight;
+        this.renderHeight = viewportHeight;
 
         // 同步旋转动画状态
         this.updateSpinner();
@@ -441,7 +408,7 @@ export class HistoryViewer {
             output.push(...this.getFooterLines(width));
         }
 
-        // 确保恰好 viewportHeight 行，防止 overlay 下方内容透出
+        // 确保恰好 renderHeight 行，防止 overlay 下方内容透出
         while (output.length < viewportHeight) {
             output.push("");
         }
@@ -451,19 +418,16 @@ export class HistoryViewer {
 
     /**
      * 构建 working 指示器行，与 pi 内置 Loader 样式一致。
-     * 格式：{spinner} Working...  或  {spinner} Working... (bash)
+     * 格式：{spinner} Working...
      * 颜色：spinner 用 accent，文字用 muted
      */
     private buildWorkingLine(
-        status: { isWorking: boolean; currentTool: string },
+        status: { isWorking: boolean },
     ): string {
         const theme = getTheme();
         const frame = SPINNER_FRAMES[this.spinnerFrame % SPINNER_FRAMES.length] ?? "?";
         const spinner = theme.fg("accent", frame);
-        const message = status.currentTool
-            ? `Working... (${status.currentTool})`
-            : "Working...";
-        const text = theme.fg("muted", message);
+        const text = theme.fg("muted", "Working...");
         return `${spinner} ${text}`;
     }
 
