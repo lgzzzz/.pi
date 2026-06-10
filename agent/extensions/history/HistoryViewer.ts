@@ -25,7 +25,7 @@
  *   - Ctrl+O         → 切换所有工具结果的展开/折叠状态，
  *                       并保持用户的视口位置不变
  *
- * 鼠标滚轮滚动由外部处理（参见 mouse.ts），调用 scrollBy()。
+
  */
 
 import type {Component, TUI} from "@earendil-works/pi-tui";
@@ -208,6 +208,7 @@ export class HistoryViewer {
     /** 按相对增量滚动（正数 = 向下，负数 = 向上）。 */
     scrollBy(delta: number): void {
         const maxScroll = this.computeMaxScroll();
+
         this.scrollOffset = Math.max(
             0,
             Math.min(maxScroll, this.scrollOffset + delta),

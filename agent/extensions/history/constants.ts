@@ -5,17 +5,10 @@
  */
 
 /** 每次按上/下箭头滚动的行数。 */
-export const SCROLL_LINE_STEP = 3;
-
-/** SGR 鼠标按键代码。 */
-export const MOUSE_WHEEL_UP = 64;
-export const MOUSE_WHEEL_DOWN = 65;
-
-/** SGR 鼠标序列模式：\x1b[<按钮;列;行M（按下）或 \x1b[<按钮;列;行m（释放）。 */
-export const SGR_MOUSE_PATTERN = /^\x1b\[<(\d+);\d+;\d+[Mm]$/;
+export const SCROLL_LINE_STEP = 1;
 
 /**
- * ANSI 转义序列：进入备用屏幕并启用鼠标追踪。
+ * ANSI 转义序列：进入备用屏幕。
  * 合并为单次写入以避免闪烁。
  */
 export const ALT_SCREEN_ENTER = [
@@ -30,8 +23,6 @@ export const ALT_SCREEN_ENTER = [
  */
 export const ALT_SCREEN_EXIT = [
     "\x1b[?1006l",   // 禁用 SGR 鼠标模式
-    "\x1b[?1002l",   // 禁用按钮事件追踪
-    "\x1b[?1000l",   // 禁用鼠标追踪
     "\x1b[?25h",     // 显示光标
     "\x1b[?1049l",   // 退出备用屏幕
     "\x1b[2J\x1b[H", // 清除主屏幕并重置光标

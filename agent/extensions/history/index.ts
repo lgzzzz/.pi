@@ -6,7 +6,7 @@
  *
  * 功能：
  *   - 渲染用户消息、助手消息以及工具调用/结果
- *   - 使用箭头键 / 鼠标滚轮滚动（3 行和整页增量）
+ *   - 使用箭头键滚动（上下 1 行，左右整页增量）
  *   - 所有工具（内置 read/edit/write/bash 及 junie_ai 等）统一使用 pi 的原生
  *     ToolExecutionComponent 进行富文本 diff/代码渲染
  *   - Ctrl+O 同时切换所有工具结果的展开/折叠状态
@@ -19,7 +19,6 @@
  *   helpers.ts             — 格式化、内容提取、工具定义工厂
 
  *   HistoryViewer.ts       — 可滚动视口控制器（渲染 + 输入处理）
- *   mouse.ts               — SGR 鼠标滚动事件解析器
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -41,7 +40,6 @@ import {
 import { extractUserMessageText, createBuiltInToolDefinition, aggregateUsage } from "./helpers.js";
 import { createJunieAiToolDefinition } from "../junie.js";
 import { HistoryViewer } from "./HistoryViewer.js";
-import { parseSGRMouseScroll } from "./mouse.js";
 import { loadConfig } from "./config.js";
 import { buildFooterLines } from "../custom-footer/buildFooterLines.js";
 import { getTheme } from "./theme.js";
@@ -215,7 +213,7 @@ export default function (pi: ExtensionAPI) {
                 viewer.setTui(tui);
                 const terminal = tui.terminal;
 
-                // 进入备用屏幕，启用鼠标追踪
+                // 进入备用屏幕
                 terminal.write(ALT_SCREEN_ENTER);
 
                 // 在空白备用屏幕上强制进行全量渲染
@@ -228,16 +226,6 @@ export default function (pi: ExtensionAPI) {
                         // ESC：关闭覆盖层并返回主屏幕
                         if (matchesKey(data, Key.esc)) {
                             closeViewer();
-                            return;
-                        }
-
-                        // 鼠标滚轮滚动
-                        if (data.startsWith("\x1b[<")) {
-                            const delta = parseSGRMouseScroll(data);
-                            if (delta !== 0) {
-                                viewer.scrollBy(delta);
-                                tui.requestRender();
-                            }
                             return;
                         }
 
