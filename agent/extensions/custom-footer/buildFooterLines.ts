@@ -94,8 +94,6 @@ export interface FooterLinesOptions {
     modelName: string;
     /** provider 名称，如 "opencode-go" */
     provider?: string;
-    /** 可用 provider 数量（>1 时在模型名前显示 (provider)） */
-    providerCount: number;
     /** 模型是否支持 reasoning */
     modelReasoning: boolean;
     /** thinking level */
@@ -187,7 +185,7 @@ export function buildFooterLines(opts: FooterLinesOptions): string[] {
     }
     // 多 provider 时前置 (provider)
     let rightSide = rightSideWithoutProvider;
-    if (opts.providerCount > 1 && opts.provider) {
+    if (opts.provider) {
         const withProvider = `(${opts.provider}) ${rightSideWithoutProvider}`;
         if (statsLeftWidth + 2 + visibleWidth(withProvider) <= opts.width) {
             rightSide = withProvider;

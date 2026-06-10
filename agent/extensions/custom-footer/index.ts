@@ -51,8 +51,6 @@ export default function (pi: ExtensionAPI) {
                     const model = ctx.model;
                     const modelName = model?.id ?? "no-model";
                     const provider = model?.provider;
-                    const providerCount =
-                        footerData.getAvailableProviderCount();
                     const modelReasoning = model?.reasoning ?? false;
                     const thinkingLevel = pi.getThinkingLevel();
 
@@ -81,7 +79,6 @@ export default function (pi: ExtensionAPI) {
                         contextWindow,
                         modelName,
                         provider,
-                        providerCount,
                         modelReasoning,
                         thinkingLevel,
                         fg: (color, text) => theme.fg(color, text),

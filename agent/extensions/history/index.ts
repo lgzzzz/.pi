@@ -156,7 +156,6 @@ export default function (pi: ExtensionAPI) {
             const model = c.model;
             const modelName = model?.id ?? "no-model";
             const provider = model?.provider;
-            const providerCount = 1;
             const modelReasoning = model?.reasoning ?? false;
             const thinkingLevel = pi.getThinkingLevel();
             const usingSubscription = model
@@ -193,7 +192,6 @@ export default function (pi: ExtensionAPI) {
                 contextWindow,
                 modelName,
                 provider,
-                providerCount,
                 modelReasoning,
                 thinkingLevel,
                 fg: (color, text) => theme.fg(color, text),
