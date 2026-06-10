@@ -231,9 +231,8 @@ export default function (pi: ExtensionAPI) {
                             return;
                         }
 
-                        // 鼠标滚轮滚动（标准 SGR 及 ghostty/kitty 变体）
-                        // 鼠标事件永远不关闭查看器
-                        if (data.startsWith("\x1b[<") || data.startsWith("\x1b[>")) {
+                        // 鼠标滚轮滚动
+                        if (data.startsWith("\x1b[<")) {
                             const delta = parseSGRMouseScroll(data);
                             if (delta !== 0) {
                                 viewer.scrollBy(delta);

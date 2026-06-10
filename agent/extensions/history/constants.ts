@@ -11,9 +11,8 @@ export const SCROLL_LINE_STEP = 3;
 export const MOUSE_WHEEL_UP = 64;
 export const MOUSE_WHEEL_DOWN = 65;
 
-/** SGR 鼠标序列模式：\x1b[<按钮;列;行M（按下）或 \x1b[<按钮;列;行m（释放）。
- * 同时支持 ghostty/kitty 的 \x1b[> 变体。 */
-export const SGR_MOUSE_PATTERN = /^\x1b\[[<>](\d+);\d+;\d+[Mm]$/;
+/** SGR 鼠标序列模式：\x1b[<按钮;列;行M（按下）或 \x1b[<按钮;列;行m（释放）。 */
+export const SGR_MOUSE_PATTERN = /^\x1b\[<(\d+);\d+;\d+[Mm]$/;
 
 /**
  * ANSI 转义序列：进入备用屏幕并启用鼠标追踪。
@@ -21,8 +20,6 @@ export const SGR_MOUSE_PATTERN = /^\x1b\[[<>](\d+);\d+;\d+[Mm]$/;
  */
 export const ALT_SCREEN_ENTER = [
     "\x1b[?1049h", // 进入备用屏幕
-    "\x1b[?1000h", // 启用基础鼠标追踪
-    "\x1b[?1002h", // 启用按钮事件追踪
     "\x1b[?1006h", // 启用 SGR 鼠标模式
     "\x1b[?25l",   // 隐藏光标
 ].join("");
