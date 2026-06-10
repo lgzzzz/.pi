@@ -3,6 +3,8 @@
  *
  * 解析终端在备用屏幕模式下生成的
  * SGR（Send Graphics Rendition）鼠标转义序列。
+ *
+ * 支持标准 SGR（\x1b[<）以及 ghostty/kitty（\x1b[>）变体。
  */
 
 import { SCROLL_LINE_STEP, MOUSE_WHEEL_UP, MOUSE_WHEEL_DOWN, SGR_MOUSE_PATTERN } from "./constants.js";
@@ -10,9 +12,11 @@ import { SCROLL_LINE_STEP, MOUSE_WHEEL_UP, MOUSE_WHEEL_DOWN, SGR_MOUSE_PATTERN }
 /**
  * 解析 SGR 鼠标转义序列并返回滚动增量。
  *
- * SGR 格式：
+ * SGR 格式（标准）：
  *   \x1b[<按钮;列;行M  （按下）
  *   \x1b[<按钮;列;行m  （释放）
+ *
+ * ghostty/kitty 变体使用 \x1b[> 替代 \x1b[<。
  *
  * 对于滚轮向下返回 SCROLL_LINE_STEP（正数），
  * 对于滚轮向上返回 -SCROLL_LINE_STEP（负数），

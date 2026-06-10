@@ -71,6 +71,8 @@ export class HistoryViewer {
     /** dispose 是否已调用。 */
     private disposed: boolean = false;
 
+    private expanded: boolean = false;
+
     constructor(
         getMessages: MessageListProvider,
         getWorkingStatus: WorkingStatusProvider,
@@ -301,7 +303,7 @@ export class HistoryViewer {
             this.findViewportAnchor(preOffsets);
 
         // 统一将所有组件设置为 expanded，避免混合状态
-        const changed = this.setAllExpanded(messages);
+        const changed = this.toggleExpanded(messages);
         if (!changed) return;
 
         // 在布局变化后恢复视口位置
@@ -320,16 +322,15 @@ export class HistoryViewer {
      * 防止一部分已经展开而另一部分未展开的混合状态。
      * 若至少有一个组件被变更则返回 true。
      */
-    private setAllExpanded(messages: Component[]): boolean {
+    private toggleExpanded(messages: Component[]): boolean {
         let changed = false;
-
+        this.expanded = !this.expanded
         for (const msg of messages) {
             if (msg instanceof ToolExecutionComponent) {
-                msg.setExpanded(true);
+                msg.setExpanded(this.expanded);
                 changed = true;
             }
         }
-
         return changed;
     }
 
@@ -448,9 +449,6 @@ export class HistoryViewer {
             if (rendered.length > 0) {
                 lines.push(...rendered);
                 // 只在非最后一条消息后添加空行分隔符
-                if (i < messages.length - 1) {
-                    lines.push("");
-                }
             }
         }
 
