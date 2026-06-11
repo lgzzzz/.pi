@@ -135,6 +135,22 @@ export default function (pi: ExtensionAPI) {
         if (viewerOpen) return;
         viewerOpen = true;
 
+        // 在打开查看器时获取一次 git 分支，避免每次渲染都执行 git 命令
+        const cachedGitBranch: string | undefined = (() => {
+            if (!currentCtx) return undefined;
+            try {
+                return execSync("git branch --show-current", {
+                    cwd: currentCtx.cwd,
+                    encoding: "utf-8",
+                    timeout: 1000,
+                    stdio: ["pipe", "pipe", "pipe"],
+                }).trim() || undefined;
+            } catch {
+                // 非 git 仓库或命令失败，忽略
+                return undefined;
+            }
+        })();
+
         /** 构建自定义 footer 行（在渲染时动态计算）。 */
         const getFooterLines = (width: number) => {
             const c = currentCtx;
@@ -162,24 +178,12 @@ export default function (pi: ExtensionAPI) {
             const sessionName =
                 c.sessionManager.getSessionName() ?? undefined;
 
-            // 获取当前 git 分支
-            let gitBranch: string | undefined;
-            try {
-                gitBranch = execSync("git branch --show-current", {
-                    cwd: c.cwd,
-                    encoding: "utf-8",
-                    timeout: 1000,
-                }).trim() || undefined;
-            } catch {
-                // 非 git 仓库或命令失败，忽略
-            }
-
             const theme = getTheme();
             return buildFooterLines({
                 width,
                 cwd: c.cwd,
                 home: process.env.HOME || process.env.USERPROFILE,
-                gitBranch,
+                gitBranch: cachedGitBranch,
                 sessionName,
                 totalInput,
                 totalOutput,
