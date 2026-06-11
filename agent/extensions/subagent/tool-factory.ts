@@ -31,9 +31,10 @@ export function createSubagentToolDefinition(
                 .map(([name, preset]) => `${name} — ${preset.description}`)
                 .join("; "),
         promptSnippet:
-            `将任务委派给子代理执行。可用: ${Object.keys(presets).join("、")}。`,
+            `将任务委派给子代理执行。`,
         promptGuidelines: [
             "使用 delegate 工具将规范审查、计划审查、任务执行委派给专门的子代理。agent 参数指定子代理类型，task 参数描述具体任务。",
+            `可用的子代理有: ${Object.keys(presets).join("、")}。`
         ],
         parameters: subagentSchema,
 
