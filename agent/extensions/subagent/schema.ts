@@ -4,7 +4,7 @@ import { Type, type Static } from "typebox";
 export const subagentSchema = Type.Object({
     agent: Type.String({
         description:
-            "要调用的子代理名称。可用预设: spec-reviewer | plan-reviewer | plan-executor",
+            "要调用的子代理名称。可用子代理参见工具描述（delegate tool description）中的完整列表。",
     }),
     task: Type.String({
         description: "委派给子代理的具体任务描述。应详细说明期望子代理完成什么。",

@@ -14,6 +14,8 @@ export interface AgentPreset {
     model?: string;
     /** Default timeout in milliseconds */
     timeout: number;
+    /** System prompt (the markdown body content) */
+    systemPrompt: string;
 }
 
 /** Details returned by the delegate tool execution */

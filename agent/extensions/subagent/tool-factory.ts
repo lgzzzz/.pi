@@ -5,30 +5,33 @@ import { buildCollapsedToolPreview } from "../history/helpers.js";
 
 import type { SubagentToolDetails, SubagentToolOptions } from "./types.js";
 import { subagentSchema } from "./schema.js";
-import { AGENT_PRESETS } from "./presets.js";
-import { buildPiArgs, parseResult, PREVIEW_LINES } from "./exec.js";
+import { loadPresets } from "./loader.js";
+import { buildRpcArgs, executeSubagent, parseResult, PREVIEW_LINES } from "./exec.js";
 
 /**
  * Create a ToolDefinition for the delegate sub-agent tool.
  *
+ * Spawns pi in RPC mode (--mode rpc) and communicates via stdin/stdout JSON-RPC.
+ *
  * Usage in a pi extension:
- *   pi.registerTool(createSubagentToolDefinition({ exec: (cmd, args, opts) => pi.exec(cmd, args, opts) }));
+ *   pi.registerTool(createSubagentToolDefinition());
  */
 export function createSubagentToolDefinition(
-    options?: SubagentToolOptions,
+    _options?: SubagentToolOptions,
 ): ToolDefinition<typeof subagentSchema, SubagentToolDetails> {
-    const execFn = options?.exec;
+    // Load presets from markdown files at definition time (cached)
+    const presets = loadPresets();
 
     return {
         name: "delegate",
         label: "Delegate",
         description:
             "将任务委派给子代理执行。可用子代理: " +
-            Object.entries(AGENT_PRESETS)
+            Object.entries(presets)
                 .map(([name, preset]) => `${name} — ${preset.description}`)
                 .join("; "),
         promptSnippet:
-            "将任务委派给子代理执行。可用: spec-reviewer（审查规范）、plan-reviewer（审查计划）、plan-executor（执行计划）。",
+            `将任务委派给子代理执行。可用: ${Object.keys(presets).join("、")}。`,
         promptGuidelines: [
             "使用 delegate 工具将规范审查、计划审查、任务执行委派给专门的子代理。agent 参数指定子代理类型，task 参数描述具体任务。",
         ],
@@ -130,9 +133,9 @@ export function createSubagentToolDefinition(
                 };
             }
 
-            const preset = AGENT_PRESETS[agent];
+            const preset = presets[agent];
             if (!preset) {
-                const available = Object.keys(AGENT_PRESETS).join(", ");
+                const available = Object.keys(presets).join(", ");
                 return {
                     content: [
                         {
@@ -151,42 +154,22 @@ export function createSubagentToolDefinition(
                 };
             }
 
-            // --- Require exec function ---
-            if (!execFn) {
-                return {
-                    content: [
-                        {
-                            type: "text",
-                            text: "Error: No exec function configured. When creating the subagent tool definition, pass { exec } in SubagentToolOptions.",
-                        },
-                    ],
-                    details: {
-                        agent,
-                        task: task.trim(),
-                        summary: "",
-                        fullOutput: "",
-                        exitCode: null,
-                        error: "No exec function configured",
-                    },
-                };
-            }
-
-            // --- Build command and execute ---
-            const args = buildPiArgs(preset, task.trim());
+            // --- Build command and execute via RPC ---
+            const args = buildRpcArgs(preset);
             const effectiveTimeout = timeout ?? preset.timeout;
 
             onUpdate?.({
                 content: [
                     {
                         type: "text",
-                        text: `Delegating to ${preset.label}...`,
+                        text: `Delegating to ${preset.label} (RPC)...`,
                     },
                 ],
                 details: { agent, task: task.trim(), summary: "", fullOutput: "", exitCode: null, status: "executing" },
             });
 
             try {
-                const result = await execFn("pi", args, {
+                const result = await executeSubagent(args, task.trim(), {
                     signal,
                     timeout: effectiveTimeout,
                     cwd: ctx.cwd,
