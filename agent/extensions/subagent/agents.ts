@@ -55,10 +55,12 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
             continue;
         }
 
-        const tools = frontmatter.tools
-            ?.split(",")
-            .map((t: string) => t.trim())
-            .filter(Boolean);
+        const rawTools = frontmatter.tools;
+        const tools: string[] | undefined = Array.isArray(rawTools)
+            ? rawTools.map((t: unknown) => String(t).trim()).filter(Boolean)
+            : typeof rawTools === "string"
+              ? rawTools.split(",").map((t: string) => t.trim()).filter(Boolean)
+              : undefined;
 
         agents.push({
             name: frontmatter.name,
