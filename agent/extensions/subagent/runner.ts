@@ -5,14 +5,14 @@
  * giving it an isolated context window.
  */
 
-import { spawn } from "node:child_process";
+import {spawn} from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
-import type { AgentConfig } from "./agents.js";
-import { getFinalOutput } from "./format.js";
-import type { OnUpdateCallback, SingleResult } from "./types.js";
+import {withFileMutationQueue} from "@earendil-works/pi-coding-agent";
+import type {AgentConfig} from "./agents.js";
+import {getFinalOutput} from "./format.js";
+import type {OnUpdateCallback, SingleResult} from "./types.js";
 
 /**
  * Run an async function for each item with a concurrency cap.
@@ -94,7 +94,6 @@ export async function runSingleAgent(
     const available = agents.map((a) => `"${a.name}"`).join(", ") || "none";
     return {
       agent: agentName,
-      agentSource: "unknown",
       task,
       exitCode: 1,
       messages: [],
@@ -113,7 +112,6 @@ export async function runSingleAgent(
 
   const currentResult: SingleResult = {
     agent: agentName,
-    agentSource: agent.source,
     task,
     exitCode: 0,
     messages: [],
@@ -142,8 +140,7 @@ export async function runSingleAgent(
 
     args.push(`Task: ${task}`);
     let wasAborted = false;
-
-    const exitCode = await new Promise<number>((resolve) => {
+    currentResult.exitCode = await new Promise<number>((resolve) => {
       const invocation = getPiInvocation(args);
       const proc = spawn(invocation.command, invocation.args, {
         cwd: cwd ?? defaultCwd,
@@ -218,11 +215,9 @@ export async function runSingleAgent(
           }, 5000);
         };
         if (signal.aborted) killProc();
-        else signal.addEventListener("abort", killProc, { once: true });
+        else signal.addEventListener("abort", killProc, {once: true});
       }
     });
-
-    currentResult.exitCode = exitCode;
     if (wasAborted) throw new Error("Subagent was aborted");
     return currentResult;
   } finally {

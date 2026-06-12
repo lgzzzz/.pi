@@ -25,7 +25,7 @@ export function formatUsageStats(
   if (usage.cacheWrite) parts.push(`W${formatTokens(usage.cacheWrite)}`);
   if (usage.cost) parts.push(`$${usage.cost.toFixed(4)}`);
   if (usage.contextTokens && usage.contextTokens > 0) {
-    parts.push(`ctx:${formatTokens(usage.contextTokens)}`);
+    parts.push(`${formatTokens(usage.contextTokens)}`);
   }
   if (model) parts.push(model);
   return parts.join(" ");
