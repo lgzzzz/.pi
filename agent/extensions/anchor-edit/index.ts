@@ -593,7 +593,7 @@ async function executeAnchorEdit(
   signal?: AbortSignal
 ): Promise<{
   content: Array<{ type: "text"; text: string }>;
-  details?: { diff: string; patch: string; firstChangedLine?: number };
+  details: { diff: string; patch: string; firstChangedLine?: number };
 }> {
   const absolutePath = resolvePath(params.path, cwd);
 
@@ -656,9 +656,8 @@ async function executeAnchorEdit(
 
   if (signal?.aborted) throw new Error("Operation aborted");
 
-  // Generate diff for display
+  // Generate diff for display (reuse newContent from above)
   const oldContent = oldLines.join("\n");
-  const newContent = newLines.join("\n");
   const diffResult = generateDiffDisplay(oldContent, newContent);
   const patch = generateUnifiedPatch(params.path, oldContent, newContent);
 
