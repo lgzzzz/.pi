@@ -232,10 +232,12 @@ function checkAnchorUnique(
   }
 
   if (occurrence !== undefined) {
-    if (occurrence < 1 || occurrence > matches.length) {
+    if (!Number.isInteger(occurrence) || occurrence < 1 || occurrence > matches.length) {
+      const reason = !Number.isInteger(occurrence)
+        ? `${occurrence} is not a valid occurrence (must be a positive integer)`
+        : `has ${matches.length} occurrence(s), but edits[${editIndex}] requested occurrence ${occurrence}`;
       throw new Error(
-        `Anchor "${truncateForError(anchor)}" has ${matches.length} occurrence(s), ` +
-          `but edits[${editIndex}] requested occurrence ${occurrence}.`
+        `Anchor "${truncateForError(anchor)}" ${reason}.`
       );
     }
     return matches[occurrence - 1];
@@ -309,27 +311,24 @@ function resolveEdits(
       const endMatches = findAnchorLines(lines, edit.end, endOcc);
       const endMatch = checkAnchorUnique(endMatches, edit.end, endOcc, i, path);
 
-      // Determine inclusive/exclusive defaults
-      // For __FILE_BEGIN__ / __FILE_END__, inclusive is meaningless
+      // inclusiveStart / inclusiveEnd default: false for range mode
+      // (__FILE_BEGIN__ / __FILE_END__ override these below since they are
+      // virtual markers, not real lines.)
       const isFileBegin = edit.start === "__FILE_BEGIN__";
       const isFileEnd = edit.end === "__FILE_END__";
-      const incStart = isFileBegin
-        ? false
-        : edit.inclusiveStart !== undefined
-          ? edit.inclusiveStart
-          : false;
-      const incEnd = isFileEnd
-        ? false
-        : edit.inclusiveEnd !== undefined
-          ? edit.inclusiveEnd
-          : false;
+      const incStart = edit.inclusiveStart !== undefined
+        ? edit.inclusiveStart
+        : false;
+      const incEnd = edit.inclusiveEnd !== undefined
+        ? edit.inclusiveEnd
+        : false;
 
       startLine = incStart ? startMatch.lineIndex : startMatch.lineIndex + 1;
       endLine = incEnd ? endMatch.lineIndex : endMatch.lineIndex - 1;
 
-      // For __FILE_BEGIN__, start at line 0
+      // __FILE_BEGIN__ / __FILE_END__ override inclusive settings since
+      // they are virtual markers, not real lines.
       if (isFileBegin) startLine = 0;
-      // For __FILE_END__, end at last line
       if (isFileEnd) endLine = lines.length - 1;
 
       // Validate range
@@ -353,9 +352,13 @@ function resolveEdits(
         startLine = 0;
         endLine = -1; // empty range: start > end means insert before line 0
       } else if (isFileEnd) {
-        // Append to file
-        startLine = lines.length;
-        endLine = lines.length - 1; // empty range: insert after last line
+        // Append to file.
+        // If the file has a trailing newline (last element is ""), insert before
+        // the empty-string marker to avoid an extra blank line in the output.
+        const lastLine = lines.length > 0 ? lines[lines.length - 1] : undefined;
+        const hasTrailingNewline = lastLine === "";
+        startLine = hasTrailingNewline ? lines.length - 1 : lines.length;
+        endLine = startLine - 1; // empty range: start > end means insert
       } else if (incStart) {
         // Replace the anchor line
         startLine = startMatch.lineIndex;
@@ -371,7 +374,10 @@ function resolveEdits(
       editIndex: i,
       startLine,
       endLine,
-      newText: normalizeToLF(edit.newText),
+      // Strip a single trailing newline so that split-join round-trip doesn't
+      // produce an unintended blank line. Users who need a trailing blank line
+      // should end newText with "\n\n" (one will be stripped, one remains).
+      newText: normalizeToLF(edit.newText).replace(/\n$/, ""),
     });
   }
 
@@ -385,10 +391,22 @@ function resolveEdits(
   for (let i = 1; i < anchored.length; i++) {
     const prev = anchored[i - 1];
     const curr = anchored[i];
+    // Detect actual range overlaps
     if (curr.startLine <= prev.endLine) {
       throw new Error(
         `edits[${prev.editIndex}] and edits[${curr.editIndex}] overlap in ${path}. ` +
           `Merge them into one edit or target disjoint regions.`
+      );
+    }
+    // Detect duplicate insert positions (both are insert-only: startLine > endLine)
+    if (
+      prev.startLine > prev.endLine &&
+      curr.startLine > curr.endLine &&
+      curr.startLine === prev.startLine
+    ) {
+      throw new Error(
+        `edits[${prev.editIndex}] and edits[${curr.editIndex}] both insert at the same ` +
+          `position (line ${curr.startLine}) in ${path}. Merge them into one edit.`
       );
     }
   }
