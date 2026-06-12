@@ -12,5 +12,8 @@
     "@earendil-works/pi-tui": "^0.75.3",
     "typebox": "^1.1.38",
     "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4"
   }
 }

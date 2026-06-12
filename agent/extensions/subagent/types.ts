@@ -1,58 +1,44 @@
 /**
- * Types for the Subagent Extension
+ * Shared types for the subagent extension
  */
 
-/** Configuration for a sub-agent preset */
-export interface AgentPreset {
-    /** Display label for the sub-agent */
-    label: string;
-    /** Description shown in TUI and LLM context */
-    description: string;
-    /** Allowed tools (empty array = no tools, pure reasoning) */
-    tools: string[];
-    /** Optional model override (defaults to main agent's model if undefined) */
-    model?: string;
-    /** Default timeout in milliseconds */
-    timeout: number;
-    /** System prompt (the markdown body content) */
-    systemPrompt: string;
+import type { Message } from "@earendil-works/pi-ai";
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { AgentScope } from "./agents.js";
+
+export interface UsageStats {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
+  contextTokens: number;
+  turns: number;
 }
 
-/** Details returned by the delegate tool execution */
-export interface SubagentToolDetails {
-    agent: string;
-    task: string;
-    summary: string;
-    fullOutput: string;
-    exitCode: number | null;
-    error?: string;
-    status?: string;
+export interface SingleResult {
+  agent: string;
+  agentSource: "user" | "project" | "unknown";
+  task: string;
+  exitCode: number;
+  messages: Message[];
+  stderr: string;
+  usage: UsageStats;
+  model?: string;
+  stopReason?: string;
+  errorMessage?: string;
+  step?: number;
 }
 
-/** Options for shell command execution */
-export interface SubagentExecOptions {
-    signal?: AbortSignal;
-    timeout?: number;
-    cwd?: string;
+export interface SubagentDetails {
+  mode: "single" | "parallel" | "chain";
+  agentScope: AgentScope;
+  projectAgentsDir: string | null;
+  results: SingleResult[];
 }
 
-/** Result from a shell command execution */
-export interface SubagentExecResult {
-    code: number | null;
-    stdout: string;
-    stderr: string;
-    killed: boolean;
-}
+export type DisplayItem =
+  | { type: "text"; text: string }
+  | { type: "toolCall"; name: string; args: Record<string, any> };
 
-/** Options for createSubagentToolDefinition */
-export interface SubagentToolOptions {
-    /**
-     * Function to execute shell commands.
-     * When used inside a pi extension, pass a wrapper around pi.exec().
-     */
-    exec?: (
-        command: string,
-        args: string[],
-        options?: SubagentExecOptions,
-    ) => Promise<SubagentExecResult>;
-}
+export type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
