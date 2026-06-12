@@ -7,7 +7,7 @@
  * 功能：
  *   - 渲染用户消息、助手消息以及工具调用/结果
  *   - 使用箭头键滚动（上下 1 行，左右整页增量）
- *   - 所有工具（内置 read/edit/write/bash 及 junie_ai 等）统一使用 pi 的原生
+ *   - 所有工具（内置 read/edit/write/bash 等）统一使用 pi 的原生
  *     ToolExecutionComponent 进行富文本 diff/代码渲染
  *   - Ctrl+O 同时切换所有工具结果的展开/折叠状态
  *   - Agent 工作时在内容底部显示旋转 working 指示器，与 pi 内置 Loader 一致
@@ -38,7 +38,6 @@ import {
     ALT_SCREEN_EXIT,
 } from "./constants.js";
 import { extractUserMessageText, createBuiltInToolDefinition, aggregateUsage } from "./helpers.js";
-import { createJunieAiToolDefinition } from "../junie.js";
 import { createSubagentToolDefinition } from "../subagent/tool-definition.js";
 import { HistoryViewer } from "./HistoryViewer.js";
 import { loadConfig } from "./config.js";
@@ -443,23 +442,6 @@ export default function (pi: ExtensionAPI) {
         // subagent：使用 ToolExecutionComponent 与内置工具保持一致的渲染管线
         if (toolName === "subagent") {
             const toolDef = createSubagentToolDefinition();
-            const component = new ToolExecutionComponent(
-                toolName,
-                toolCallId,
-                args,
-                undefined, // options
-                toolDef as any,
-                createTuiWrapper(),
-                workingDir,
-            );
-            component.markExecutionStarted();
-            component.setArgsComplete();
-            return component;
-        }
-
-        // junie_ai：使用 ToolExecutionComponent 与内置工具保持一致的渲染管线
-        if (toolName === "junie_ai") {
-            const toolDef = createJunieAiToolDefinition();
             const component = new ToolExecutionComponent(
                 toolName,
                 toolCallId,
