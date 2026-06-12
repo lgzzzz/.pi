@@ -39,6 +39,7 @@ import {
 } from "./constants.js";
 import { extractUserMessageText, createBuiltInToolDefinition, aggregateUsage } from "./helpers.js";
 import { createJunieAiToolDefinition } from "../junie.js";
+import { createSubagentToolDefinition } from "../subagent/tool-definition.js";
 import { HistoryViewer } from "./HistoryViewer.js";
 import { loadConfig } from "./config.js";
 import { buildFooterLines } from "../custom-footer/buildFooterLines.js";
@@ -437,6 +438,23 @@ export default function (pi: ExtensionAPI) {
                 component.setArgsComplete();
                 return component;
             }
+        }
+
+        // subagent：使用 ToolExecutionComponent 与内置工具保持一致的渲染管线
+        if (toolName === "subagent") {
+            const toolDef = createSubagentToolDefinition();
+            const component = new ToolExecutionComponent(
+                toolName,
+                toolCallId,
+                args,
+                undefined, // options
+                toolDef as any,
+                createTuiWrapper(),
+                workingDir,
+            );
+            component.markExecutionStarted();
+            component.setArgsComplete();
+            return component;
         }
 
         // junie_ai：使用 ToolExecutionComponent 与内置工具保持一致的渲染管线
