@@ -5,8 +5,8 @@
  */
 
 import type {AgentToolResult} from "@earendil-works/pi-agent-core";
-import {getMarkdownTheme, Theme, ToolRenderContext, ToolRenderResultOptions} from "@earendil-works/pi-coding-agent";
-import {Container, Markdown, Text} from "@earendil-works/pi-tui";
+import {Theme, ToolRenderContext, ToolRenderResultOptions} from "@earendil-works/pi-coding-agent";
+import {Text} from "@earendil-works/pi-tui";
 import {formatToolCall, formatUsageStats, getDisplayItems, getFinalOutput,} from "./format.js";
 import type {SubagentDetail} from "./types.js";
 
@@ -15,8 +15,8 @@ import type {SubagentDetail} from "./types.js";
 // ---------------------------------------------------------------------------
 
 interface SubagentCallArgs {
-  agent: string;
-  task: string;
+  agent?: string;
+  task?: string;
   cwd?: string;
 }
 
@@ -34,12 +34,12 @@ export function renderCall(args: SubagentCallArgs, theme: Theme, ctx: ToolRender
   let text =
     theme.fg("toolTitle", theme.bold("subagent ")) +
     theme.fg("accent", agentName);
-
+  text += "\n---Task---"
   if (ctx.expanded) {
     text += `\n${theme.fg("dim", taskText)}`;
   } else {
     const preview =
-      taskText.length > 60 ? `${taskText.slice(0, 60)}...` : taskText;
+      taskText.length > 60 ? `${taskText.slice(0, 100)}...` : taskText;
     text += `\n${theme.fg("dim", preview)}`;
   }
   return new Text(text, 0, 0);
@@ -57,7 +57,7 @@ export function renderResult(
   options: ToolRenderResultOptions,
   theme: Theme,
   _context: ToolRenderContext,
-): Text | Container {
+): Text {
   const details = result.details as SubagentDetail | undefined;
   if (!details || !details.result) {
     const textPart = result.content[0];
@@ -67,64 +67,62 @@ export function renderResult(
   }
 
   const r = details.result;
-  const mdTheme = getMarkdownTheme();
   const isError = r.exitCode !== 0 || r.stopReason === "error" || r.stopReason === "aborted";
   const icon = isError ? theme.fg("error", "✗") : theme.fg("success", "✓");
   const displayItems = getDisplayItems(r.messages);
   const finalOutput = getFinalOutput(r.messages);
 
-  const container = new Container();
-  let header = "";
+  let output = "";
+
+  // Header
   if (options.isPartial) {
-    header += ` Working...`
+    output += `Working...`;
   } else {
-    header += ` ${icon}`
+    output += `${icon}`;
   }
-  if (isError && r.stopReason) header += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
-  container.addChild(new Text(header, 0, 0));
+  if (isError && r.stopReason) output += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
+
+  // Error message
   if (isError && r.errorMessage) {
-    container.addChild(new Text(theme.fg("error", `Error: ${r.errorMessage}`), 0, 0));
+    output += `\n${theme.fg("error", `Error: ${r.errorMessage}`)}`;
   }
-  container.addChild(new Text(theme.fg("muted", "─── Output ───"), 0, 0));
+
+  // Separator
+  output += `\n${theme.fg("muted", "---Output---")}`;
+
+  // No output case
   if (displayItems.length === 0 && !finalOutput) {
-    container.addChild(new Text(theme.fg("muted", "(no output)"), 0, 0));
-    return container;
+    output += `\n${theme.fg("muted", "(no output)")}`;
+    return new Text(output, 0, 0);
   }
+
+  // Tool calls and output
   if (options.expanded) {
     for (const item of displayItems) {
       if (item.type === "toolCall")
-        container.addChild(
-          new Text(
-            theme.fg("muted", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme)),
-          ),
-        );
+        output += `\n${theme.fg("muted", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme))}`;
     }
     if (finalOutput) {
-      container.addChild(
-        new Markdown(theme.bg("toolSuccessBg", finalOutput.trim()), 0, 0, mdTheme),
-      );
+      output += `\n${theme.bg("toolSuccessBg", finalOutput.trim())}`;
     }
   } else {
     const toolCalls = displayItems.filter(item => item.type === "toolCall").slice(-7);
     for (const item of toolCalls) {
-      container.addChild(
-        new Text(
-          theme.fg("muted", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme)),
-        ),
-      );
+      output += `\n${theme.fg("muted", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme))}`;
     }
     if (finalOutput) {
       const truncated = finalOutput.length > 100
         ? "..." + finalOutput.slice(-100)
         : finalOutput;
-      container.addChild(
-        new Text(theme.bg("toolSuccessBg", truncated), 0, 0),
-      );
+      output += `\n${theme.bg("toolSuccessBg", truncated)}`;
     }
   }
+
+  // Usage stats
   const usageStr = formatUsageStats(r.usage, r.model);
   if (usageStr) {
-    container.addChild(new Text(theme.fg("dim", usageStr), 0, 0));
+    output += `\n${theme.fg("dim", usageStr)}`;
   }
-  return container;
+
+  return new Text(output, 0, 0);
 }
