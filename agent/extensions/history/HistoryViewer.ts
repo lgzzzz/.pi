@@ -72,6 +72,19 @@ export class HistoryViewer {
 
     private expanded: boolean = false;
 
+    /**
+     * 每个组件在最近一次渲染中的起始行索引。
+     * componentStartLines[i] = 组件 i 在消息行数组中的第一行。
+     * 由 renderAllMessages 在每次渲染时填充。
+     */
+    private componentStartLines: number[] = [];
+
+    /**
+     * 若设置，下一次 render() 将把 scrollOffset 定位到该组件的首行。
+     * 在 handleToolToggle 中设置，在 render() 中消费后重置为 null。
+     */
+    private scrollToComponentIndex: number | null = null;
+
     constructor(
         getMessages: MessageListProvider,
         getWorkingStatus: WorkingStatusProvider,
@@ -186,12 +199,21 @@ export class HistoryViewer {
 
     /**
      * 处理 Ctrl+O：切换所有可展开工具组件的展开/折叠状态。
+     *
+     * 当用户未固定在底部（即正在浏览历史内容）时，
+     * 在切换展开状态前先记录当前视窗第一行所属的组件，
+     * 以便在重新渲染后将视窗定位回该组件的首行。
      */
     private handleToolToggle(data: string): boolean {
         if (!matchesKey(data, Key.ctrl("o"))) return false;
 
         const messages = this.getMessages();
         if (messages.length === 0) return true;
+
+        // 仅在用户主动浏览历史（未固定在底部）时锚定当前组件
+        if (!this.pinnedToBottom) {
+            this.scrollToComponentIndex = this.findComponentAtLine(this.scrollOffset);
+        }
 
         this.toggleExpanded(messages);
 
@@ -293,6 +315,18 @@ export class HistoryViewer {
         // 自动滚动：如果固定在底部，跟随最新内容
         // 如果已不在底部，仅将偏移量限制在有效范围内
         const maxScroll = this.computeMaxScroll();
+
+        // 若 handleToolToggle 记录了需要锚定的组件，
+        // 将 scrollOffset 定位到该组件在本次渲染后的首行。
+        // 仅在用户未固定在底部（主动浏览历史）时生效。
+        if (this.scrollToComponentIndex !== null && !this.pinnedToBottom) {
+            const targetStart = this.componentStartLines[this.scrollToComponentIndex];
+            if (targetStart !== undefined) {
+                this.scrollOffset = Math.min(targetStart, maxScroll);
+            }
+            this.scrollToComponentIndex = null;
+        }
+
         if (this.pinnedToBottom) {
             this.scrollOffset = maxScroll;
         } else {
@@ -364,12 +398,16 @@ export class HistoryViewer {
      * 在连续的消息之间插入一个空行分隔符。
      * 最后一条消息后不添加空行——消息区域与 footer 之间的分隔
      * 由视窗布局中的固定分隔行提供。
+     *
+     * 同时填充 componentStartLines，记录每个组件在行数组中的起始行号。
      */
     private renderAllMessages(width: number): string[] {
         const lines: string[] = [];
         const messages = this.getMessages();
+        this.componentStartLines = [];
 
         for (let i = 0; i < messages.length; i++) {
+            this.componentStartLines.push(lines.length);
             const rendered = messages[i].render(width);
             if (rendered.length > 0) {
                 lines.push(...rendered);
@@ -390,6 +428,26 @@ export class HistoryViewer {
         while (lines.length < targetLength) {
             lines.push("");
         }
+    }
+
+    /**
+     * 根据行号查找该行属于哪个组件（按 componentStartLines 二分）。
+     * 若行号落在所有组件之前则返回 0；
+     * 若行号落在所有组件之后（填充行）则返回最后一个组件的索引。
+     * 若没有任何组件则返回 -1。
+     */
+    private findComponentAtLine(lineIndex: number): number {
+        if (this.componentStartLines.length === 0) return -1;
+
+        // componentStartLines 按组件顺序严格非递减
+        for (let i = this.componentStartLines.length - 1; i >= 0; i--) {
+            if (lineIndex >= this.componentStartLines[i]) {
+                return i;
+            }
+        }
+        // 行号在所有组件起始行之前（例如 scrollOffset = 0 但第一个组件起始行 > 0），
+        // 返回第一个组件
+        return 0;
     }
 
     /** 空操作；满足覆盖层组件接口要求。 */
