@@ -40,7 +40,7 @@ export function renderCall(args: SubagentCallArgs, theme: Theme, ctx: ToolRender
     if (ctx.expanded) {
       text += `\n${theme.fg("dim", taskText.trim())}`;
     } else {
-      const preview = taskText.length > 60 ? `${taskText.slice(0, 100)}...` : taskText;
+      const preview = taskText.length > 60 ? `${taskText.slice(0, 100)}\n...` : taskText;
       text += `\n${theme.fg("dim", preview.trim())}`;
     }
   }
@@ -70,17 +70,11 @@ export function renderResult(
 
   const r = details.result;
   const isError = r.exitCode !== 0 || r.stopReason === "error" || r.stopReason === "aborted";
-  const icon = isError ? theme.fg("error", "✗") : theme.fg("success", "✓");
   const displayItems = getDisplayItems(r.messages);
   const finalOutput = getFinalOutput(r.messages);
   let output = "";
   output += `\n---Output---`;
-  if (options.isPartial) {
-    output += theme.fg("dim", `\nWorking...`);
-  } else {
-    output += theme.fg("dim", `\n${icon}`);
-  }
-  if (isError && r.stopReason) output += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
+  if (isError && r.stopReason) output += `\n${theme.fg("error", `[${r.stopReason}]`)}`;
 
   // Error message
   if (isError && r.errorMessage) {
@@ -98,7 +92,7 @@ export function renderResult(
         output += `\n${theme.fg("muted", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme))}`;
     }
     if (finalOutput) {
-      output += `\n${theme.bg("toolSuccessBg", finalOutput.trim())}`;
+      output += `\n${theme.fg("dim", finalOutput.trim())}`;
     }
   } else {
     const toolCalls = displayItems.filter(item => item.type === "toolCall").slice(-7);
@@ -107,16 +101,16 @@ export function renderResult(
     }
     if (finalOutput) {
       const truncated = finalOutput.length > 100
-        ? "..." + finalOutput.slice(-100)
+        ? "...\n" + finalOutput.slice(-100)
         : finalOutput;
-      output += `\n${theme.bg("toolSuccessBg", truncated.trim())}`;
+      output += `\n${theme.fg("dim", truncated.trim())}`;
     }
   }
 
   // Usage stats
   const usageStr = formatUsageStats(r.usage, r.model);
   if (usageStr) {
-    output += `\n${theme.fg("dim", usageStr)}`;
+    output += `\n\n${theme.fg("dim", usageStr)}`;
   }
 
   return new Text(output, 0, 0);
