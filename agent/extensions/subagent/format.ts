@@ -3,8 +3,8 @@
  */
 
 import * as os from "node:os";
-import type { Message } from "@earendil-works/pi-ai";
-import type { DisplayItem, UsageStats } from "./types.js";
+import type {Message} from "@earendil-works/pi-ai";
+import type {DisplayItem, UsageStats} from "./types.js";
 
 export function formatTokens(count: number): string {
   if (count < 1000) return count.toString();
@@ -23,10 +23,18 @@ export function formatUsageStats(
   if (usage.output) parts.push(`↓${formatTokens(usage.output)}`);
   if (usage.cacheRead) parts.push(`R${formatTokens(usage.cacheRead)}`);
   if (usage.cacheWrite) parts.push(`W${formatTokens(usage.cacheWrite)}`);
-  if (usage.cost) parts.push(`$${usage.cost.toFixed(4)}`);
-  if (usage.contextTokens && usage.contextTokens > 0) {
-    parts.push(`${formatTokens(usage.contextTokens)}`);
+  if (usage.input || usage.cacheRead) {
+    const percent = usage.cacheRead / (usage.input + usage.cacheRead);
+    parts.push(`%${percent.toFixed(2)}`)
   }
+  if (usage.input || usage.output || usage.cacheRead) {
+    const costRMB =
+      ((usage.input || 0) / 1_000_000) * 2 +
+      ((usage.cacheRead || 0) / 1_000_000) * 0.025 +
+      ((usage.output || 0) / 1_000_000) * 6;
+    parts.push(`¥${costRMB.toFixed(3)}`);
+  }
+  parts.push(`${formatTokens(usage.contextTokens)}/1.0M`);
   if (model) parts.push(model);
   return parts.join(" ");
 }
