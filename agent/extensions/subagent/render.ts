@@ -5,7 +5,7 @@
  */
 
 import type {AgentToolResult} from "@earendil-works/pi-agent-core";
-import {getMarkdownTheme} from "@earendil-works/pi-coding-agent";
+import {getMarkdownTheme, ToolRenderResultOptions} from "@earendil-works/pi-coding-agent";
 import {Container, Markdown, Spacer, Text} from "@earendil-works/pi-tui";
 import {COLLAPSED_ITEM_COUNT} from "./constants.js";
 import {
@@ -48,7 +48,7 @@ function renderDisplayItems(
 
 export function renderSingleResult(
     r: SingleResult,
-    expanded: boolean,
+    options: ToolRenderResultOptions,
     theme: any,
     mdTheme: any,
 ): Text | Container {
@@ -57,10 +57,13 @@ export function renderSingleResult(
     const displayItems = getDisplayItems(r.messages);
     const finalOutput = getFinalOutput(r.messages);
 
-    if (expanded) {
+    if (options.expanded) {
         const container = new Container();
         let header = `${icon} ${theme.fg("toolTitle", theme.bold(r.agent))}`;
         if (isError && r.stopReason) header += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
+        if (options.isPartial) {
+            header += ` Working...`
+        }
         container.addChild(new Text(header, 0, 0));
         if (isError && r.errorMessage)
             container.addChild(new Text(theme.fg("error", `Error: ${r.errorMessage}`), 0, 0));
@@ -92,11 +95,14 @@ export function renderSingleResult(
     }
 
     let text = `${icon} ${theme.fg("toolTitle", theme.bold(r.agent))}`;
+    if (options.isPartial) {
+        text += " Working..."
+    }
     if (isError && r.stopReason) text += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
     if (isError && r.errorMessage) text += `\n${theme.fg("error", `Error: ${r.errorMessage}`)}`;
     else if (displayItems.length === 0) text += `\n${theme.fg("muted", "(no output)")}`;
     else {
-        text += `\n${renderDisplayItems(displayItems, expanded, COLLAPSED_ITEM_COUNT, theme)}`;
+        text += `\n${renderDisplayItems(displayItems, options.expanded, COLLAPSED_ITEM_COUNT, theme)}`;
         if (displayItems.length > COLLAPSED_ITEM_COUNT) text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
     }
     const usageStr = formatUsageStats(r.usage, r.model);
@@ -110,21 +116,21 @@ export function renderSingleResult(
 
 export function renderChainResult(
     details: SubagentDetails,
-    expanded: boolean,
+    options: ToolRenderResultOptions,
     theme: any,
     mdTheme: any,
 ): Text | Container {
     const successCount = details.results.filter((r) => r.exitCode === 0).length;
     const icon = successCount === details.results.length ? theme.fg("success", "✓") : theme.fg("error", "✗");
 
-    if (expanded) {
+    if (options.expanded) {
         const container = new Container();
         container.addChild(
             new Text(
                 icon +
                 " " +
                 theme.fg("toolTitle", theme.bold("chain ")) +
-                theme.fg("accent", `${successCount}/${details.results.length} steps`),
+                theme.fg("accent", `${successCount}/${details.results.length} steps`) + options.isPartial ? " Working..." : "",
                 0,
                 0,
             ),
@@ -179,7 +185,7 @@ export function renderChainResult(
         const displayItems = getDisplayItems(r.messages);
         text += `\n${theme.fg("muted", `─── Step ${r.step}: `)}${theme.fg("accent", r.agent)} ${rIcon}`;
         if (displayItems.length === 0) text += `\n${theme.fg("muted", "(no output)")}`;
-        else text += `\n${renderDisplayItems(displayItems, expanded, 3, theme)}`;
+        else text += `\n${renderDisplayItems(displayItems, options.expanded, 3, theme)}`;
     }
     const usageStr = formatUsageStats(aggregateUsage(details.results));
     if (usageStr) text += `\n${theme.fg("dim", `Total: ${usageStr}`)}`;
@@ -193,7 +199,7 @@ export function renderChainResult(
 
 export function renderParallelResult(
     details: SubagentDetails,
-    expanded: boolean,
+    options: ToolRenderResultOptions,
     theme: any,
     mdTheme: any,
 ): Text | Container {
@@ -210,7 +216,7 @@ export function renderParallelResult(
         ? `${successCount + failCount}/${details.results.length} done, ${running} running`
         : `${successCount}/${details.results.length} tasks`;
 
-    if (expanded) {
+    if (options.expanded) {
         const container = new Container();
         container.addChild(
             new Text(
@@ -268,11 +274,11 @@ export function renderParallelResult(
         text += `\n${theme.fg("muted", "─── ")}${theme.fg("accent", r.agent)} ${rIcon}`;
         if (displayItems.length === 0)
             text += `\n${theme.fg("muted", r.exitCode === -1 ? "(running...)" : "(no output)")}`;
-        else text += `\n${renderDisplayItems(displayItems, expanded, 5, theme)}`;
+        else text += `\n${renderDisplayItems(displayItems, options.expanded, 5, theme)}`;
     }
     const usageStr = formatUsageStats(aggregateUsage(details.results));
     if (usageStr) text += `\n${theme.fg("dim", `Total: ${usageStr}`)}`;
-    if (!expanded) text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
+    if (!options.expanded) text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
     return new Text(text, 0, 0);
 }
 
@@ -340,7 +346,7 @@ export function renderCall(args: Record<string, any>, theme: any, _context: any)
  */
 export function renderResult(
     result: AgentToolResult<SubagentDetails | undefined>,
-    {expanded}: { expanded: boolean },
+    options: ToolRenderResultOptions,
     theme: any,
     _context: any,
 ): Text | Container {
@@ -351,15 +357,15 @@ export function renderResult(
     }
     const mdTheme = getMarkdownTheme();
     if (details.mode === "single" && details.results.length === 1) {
-        return renderSingleResult(details.results[0], expanded, theme, mdTheme);
+        return renderSingleResult(details.results[0], options, theme, mdTheme);
     }
 
     if (details.mode === "chain") {
-        return renderChainResult(details, expanded, theme, mdTheme);
+        return renderChainResult(details, options, theme, mdTheme);
     }
 
     if (details.mode === "parallel") {
-        return renderParallelResult(details, expanded, theme, mdTheme);
+        return renderParallelResult(details, options, theme, mdTheme);
     }
 
     const textPart = result.content[0];
