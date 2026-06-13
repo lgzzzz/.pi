@@ -86,7 +86,6 @@ export async function runSingleAgent(
   step: number | undefined,
   signal: AbortSignal | undefined,
   onUpdate: OnUpdateCallback | undefined,
-  makeDetails: (results: SingleResult[]) => any,
 ): Promise<SingleResult> {
   const agent = agents.find((a) => a.name === agentName);
 
@@ -125,7 +124,7 @@ export async function runSingleAgent(
     if (onUpdate) {
       onUpdate({
         content: [],
-        details: makeDetails([currentResult]),
+        details: { results: [currentResult] },
       });
     }
   };

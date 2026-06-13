@@ -65,7 +65,7 @@ async function executeTasks(
                     text: `Too many tasks (${tasks.length}). Max is ${MAX_PARALLEL_TASKS}.`,
                 },
             ],
-            details: { projectAgentsDir: null, results: [] },
+            details: { results: [] },
         };
 
     const allResults: SingleResult[] = new Array(tasks.length);
@@ -88,16 +88,11 @@ async function executeTasks(
         };
     }
 
-    const makeDetails = (results: SingleResult[]): SubagentDetails => ({
-        projectAgentsDir: null,
-        results,
-    });
-
     const emitUpdate = () => {
         if (onUpdate) {
             onUpdate({
                 content: [],
-                details: makeDetails([...allResults]),
+                details: { results: [...allResults] },
             });
         }
     };
@@ -120,7 +115,6 @@ async function executeTasks(
                         emitUpdate();
                     }
                 },
-                makeDetails,
             );
             allResults[index] = result;
             emitUpdate();
@@ -141,7 +135,7 @@ async function executeTasks(
                 text: `${successCount}/${results.length} succeeded\n\n${summaries.join("\n\n")}`,
             },
         ],
-        details: makeDetails(results),
+        details: { results },
     };
 }
 
@@ -175,7 +169,7 @@ export function createSubagentToolDefinition(): ToolDefinition<typeof SubagentPa
                         type: "text",
                         text: `No tasks provided. Available agents:\n${available}`
                     }],
-                    details: { projectAgentsDir: discovery.projectAgentsDir, results: [] },
+                    details: { results: [] },
                 };
             }
 

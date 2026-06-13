@@ -30,7 +30,6 @@ export interface SingleResult {
 }
 
 export interface SubagentDetails {
-  projectAgentsDir: string | null;
   results: SingleResult[];
 }
 
