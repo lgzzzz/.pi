@@ -109,7 +109,7 @@ async function executeChainMode(
                 if (currentResult) {
                     const allResults = [...results, currentResult];
                     onUpdate({
-                        content: partial.content,
+                        content: [],
                         details: makeDetails("chain")(allResults),
                     });
                 }
@@ -206,12 +206,7 @@ async function executeParallelMode(
             const running = allResults.filter((r) => r.exitCode === -1).length;
             const done = allResults.filter((r) => r.exitCode !== -1).length;
             onUpdate({
-                content: [
-                    {
-                        type: "text",
-                        text: `Parallel: ${done}/${allResults.length} done, ${running} running...`,
-                    },
-                ],
+                content: [],
                 details: makeDetails("parallel")([...allResults]),
             });
         }

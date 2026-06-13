@@ -124,7 +124,7 @@ export async function runSingleAgent(
   const emitUpdate = () => {
     if (onUpdate) {
       onUpdate({
-        content: [{ type: "text", text: getFinalOutput(currentResult.messages) || "(running...)" }],
+        content: [],
         details: makeDetails([currentResult]),
       });
     }
@@ -215,7 +215,7 @@ export async function runSingleAgent(
           }, 5000);
         };
         if (signal.aborted) killProc();
-        else signal.addEventListener("abort", killProc, {once: true});
+        else signal.addEventListener("abort", killProc, { once: true });
       }
     });
     if (wasAborted) throw new Error("Subagent was aborted");
