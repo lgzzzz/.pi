@@ -29,7 +29,7 @@ interface SubagentCallArgs {
  */
 export function renderCall(args: SubagentCallArgs, theme: Theme, ctx: ToolRenderContext): Text {
   const agentName = args.agent || "...";
-  const taskText = args.task || "";
+  const taskText = args.task || "...";
 
   let text =
     theme.fg("toolTitle", theme.bold("subagent ")) +
@@ -74,7 +74,7 @@ export function renderResult(
   const finalOutput = getFinalOutput(r.messages);
 
   const container = new Container();
-  let header = `${theme.fg("toolTitle", theme.bold(r.agent))}`;
+  let header = "";
   if (options.isPartial) {
     header += ` Working...`
   } else {
