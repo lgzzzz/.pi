@@ -15,12 +15,10 @@ export interface AgentConfig {
     model?: string;
     systemPrompt: string;
     source: "user" | "project";
-    filePath: string;
 }
 
 export interface AgentDiscoveryResult {
     agents: AgentConfig[];
-    projectAgentsDir: string | null;
 }
 
 function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
@@ -69,7 +67,6 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
             model: frontmatter.model,
             systemPrompt: body,
             source,
-            filePath,
         });
     }
 
@@ -107,7 +104,7 @@ export function discoverAgents(cwd: string): AgentDiscoveryResult {
         const projectAgents = loadAgentsFromDir(projectAgentsDir, "project");
         for (const agent of projectAgents) agentMap.set(agent.name, agent);
     }
-    return {agents: Array.from(agentMap.values()), projectAgentsDir};
+    return {agents: Array.from(agentMap.values())};
 }
 
 export function formatAgentList(agents: AgentConfig[]): string {
