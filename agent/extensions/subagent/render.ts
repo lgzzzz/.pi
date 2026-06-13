@@ -40,7 +40,7 @@ export function renderCall(args: SubagentCallArgs, theme: Theme, ctx: ToolRender
     if (ctx.expanded) {
       text += `\n${theme.fg("muted", taskText.trim())}`;
     } else {
-      const preview = taskText.length > 60 ? `${taskText.slice(0, 100)}\n...` : taskText;
+      const preview = taskText.split("\n").length > 7 ? `${taskText.split("\n").slice(0, 7).join("\n")}\n...` : taskText;
       text += `\n${theme.fg("muted", preview.trim())}`;
     }
   }
@@ -100,8 +100,8 @@ export function renderResult(
       output += `\n${theme.fg("dim", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme))}`;
     }
     if (finalOutput) {
-      const truncated = finalOutput.length > 100
-        ? "...\n" + finalOutput.slice(-100)
+      const truncated = finalOutput.split("\n").length > 7
+        ? "...\n" + finalOutput.split("\n").slice(-7).join("\n")
         : finalOutput;
       output += `\n${theme.fg("muted", truncated.trim())}`;
     }
