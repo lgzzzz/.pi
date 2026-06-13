@@ -26,15 +26,14 @@ export interface SingleResult {
   model?: string;
   stopReason?: string;
   errorMessage?: string;
-  step?: number;
 }
 
-export interface SubagentDetails {
-  results: SingleResult[];
+export interface SubagentDetail {
+  result?: SingleResult;
 }
 
 export type DisplayItem =
   | { type: "text"; text: string }
   | { type: "toolCall"; name: string; args: Record<string, any> };
 
-export type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
+export type OnUpdateCallback = (partial: AgentToolResult<SubagentDetail>) => void;

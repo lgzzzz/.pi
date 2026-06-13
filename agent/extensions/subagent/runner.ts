@@ -10,32 +10,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import {withFileMutationQueue} from "@earendil-works/pi-coding-agent";
-import type {AgentConfig} from "./agents.js";
-import {getFinalOutput} from "./format.js";
+import {AgentConfig, formatAgentList} from "./agents.js";
 import type {OnUpdateCallback, SingleResult} from "./types.js";
-
-/**
- * Run an async function for each item with a concurrency cap.
- */
-export async function mapWithConcurrencyLimit<TIn, TOut>(
-  items: TIn[],
-  concurrency: number,
-  fn: (item: TIn, index: number) => Promise<TOut>,
-): Promise<TOut[]> {
-  if (items.length === 0) return [];
-  const limit = Math.max(1, Math.min(concurrency, items.length));
-  const results: TOut[] = new Array(items.length);
-  let nextIndex = 0;
-  const workers = new Array(limit).fill(null).map(async () => {
-    while (true) {
-      const current = nextIndex++;
-      if (current >= items.length) return;
-      results[current] = await fn(items[current], current);
-    }
-  });
-  await Promise.all(workers);
-  return results;
-}
 
 /**
  * Write a system prompt to a temp file and return its path.
@@ -83,22 +59,19 @@ export async function runSingleAgent(
   agentName: string,
   task: string,
   cwd: string | undefined,
-  step: number | undefined,
   signal: AbortSignal | undefined,
   onUpdate: OnUpdateCallback | undefined,
 ): Promise<SingleResult> {
   const agent = agents.find((a) => a.name === agentName);
-
+  const available = formatAgentList(agents);
   if (!agent) {
-    const available = agents.map((a) => `"${a.name}"`).join(", ") || "none";
     return {
       agent: agentName,
       task,
       exitCode: 1,
       messages: [],
-      stderr: `Unknown agent: "${agentName}". Available agents: ${available}.`,
+      stderr: `Unknown agent: "${agentName}". Available agents:\n${available}.`,
       usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
-      step,
     };
   }
 
@@ -117,14 +90,13 @@ export async function runSingleAgent(
     stderr: "",
     usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
     model: agent.model,
-    step,
   };
 
   const emitUpdate = () => {
     if (onUpdate) {
       onUpdate({
         content: [],
-        details: { results: [currentResult] },
+        details: { result: currentResult },
       });
     }
   };

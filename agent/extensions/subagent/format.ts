@@ -131,16 +131,4 @@ export function getDisplayItems(messages: Message[]): DisplayItem[] {
   return items;
 }
 
-/** Aggregate usage stats across multiple results */
-export function aggregateUsage(results: { usage: UsageStats }[]): UsageStats {
-  const total: UsageStats = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0, contextTokens: 0 };
-  for (const r of results) {
-    total.input += r.usage.input;
-    total.output += r.usage.output;
-    total.cacheRead += r.usage.cacheRead;
-    total.cacheWrite += r.usage.cacheWrite;
-    total.cost += r.usage.cost;
-    total.turns += r.usage.turns;
-  }
-  return total;
-}
+

@@ -1,11 +1,11 @@
 /**
- * Subagent Tool - Delegate tasks to specialized agents
+ * Subagent Tool - Delegate a task to a specialized agent
  *
- * Spawns a separate `pi` process for each subagent invocation,
+ * Spawns a separate `pi` process for the subagent invocation,
  * giving it an isolated context window.
  *
- * Supports concurrent execution via `tasks` array.
- * When a single task is given, it acts as a simple delegation.
+ * Each call handles a single task. For concurrency, the LLM
+ * should call the subagent tool multiple times.
  *
  * Uses JSON mode to capture structured output from subagents.
  */
