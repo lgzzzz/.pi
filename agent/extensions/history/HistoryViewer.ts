@@ -22,8 +22,7 @@
  * 输入处理：
  *   - 上/下箭头键   → 滚动 SCROLL_LINE_STEP 行
  *   - 左/右箭头键   → 滚动一页（动态视窗高度）
- *   - Ctrl+O         → 切换所有工具结果的展开/折叠状态，
- *                       并保持用户的视口位置不变
+ *   - Ctrl+O         → 切换所有工具结果的展开/折叠状态
  *
 
  */
@@ -187,10 +186,6 @@ export class HistoryViewer {
 
     /**
      * 处理 Ctrl+O：切换所有可展开工具组件的展开/折叠状态。
-     *
-     * 当 renderWidth 已知时，保持用户的视口位置不变，
-     * 使展开或折叠导致布局变化后，用户正在阅读的文本
-     * 仍然可见。
      */
     private handleToolToggle(data: string): boolean {
         if (!matchesKey(data, Key.ctrl("o"))) return false;
@@ -198,7 +193,7 @@ export class HistoryViewer {
         const messages = this.getMessages();
         if (messages.length === 0) return true;
 
-        this.toggleAllWithPositionPreservation(messages);
+        this.toggleExpanded(messages);
 
         return true;
     }
@@ -245,78 +240,7 @@ export class HistoryViewer {
         return Math.max(0, this.totalContentLines - messageAreaHeight);
     }
 
-    /**
-     * 计算每条消息在渲染输出中起始位置的行偏移量。
-     * 在非最后一条消息之后跟一个空行作为分隔。
-     */
-    private computeMessageOffsets(
-        messages: Component[],
-        width: number,
-    ): number[] {
-        const offsets: number[] = [];
-        let cumulative = 0;
-
-        for (let i = 0; i < messages.length; i++) {
-            offsets.push(cumulative);
-            const lines = messages[i].render(width);
-            if (lines.length > 0) {
-                cumulative += lines.length;
-                // 非最后一条消息后添加空行分隔符
-                if (i < messages.length - 1) {
-                    cumulative += 1;
-                }
-            }
-        }
-
-        return offsets;
-    }
-
-    /**
-     * 查找用户当前正在查看的消息及其内部行偏移量。
-     *
-     * 从偏移量列表末尾向前扫描，找到起始偏移量
-     * ≤ 当前 scrollOffset 的第一条消息。
-     */
-    private findViewportAnchor(
-        offsets: number[],
-    ): { messageIndex: number; innerOffset: number } {
-        for (let i = offsets.length - 1; i >= 0; i--) {
-            if (offsets[i] <= this.scrollOffset) {
-                return {
-                    messageIndex: i,
-                    innerOffset: this.scrollOffset - offsets[i],
-                };
-            }
-        }
-        return {messageIndex: 0, innerOffset: 0};
-    }
-
     // -- 工具结果切换 --------------------------------------------------------
-
-    /** 切换所有可展开工具组件，同时调整滚动位置以保持视口位置不变。 */
-    private toggleAllWithPositionPreservation(messages: Component[]): void {
-        // 记录用户当前在查看的内容（消息索引 + 内部行偏移量）
-        const preOffsets = this.computeMessageOffsets(
-            messages,
-            this.renderWidth,
-        );
-        const {messageIndex, innerOffset} =
-            this.findViewportAnchor(preOffsets);
-
-        // 统一将所有组件设置为 expanded，避免混合状态
-        const changed = this.toggleExpanded(messages);
-        if (!changed) return;
-
-        // 在布局变化后恢复视口位置
-        const postOffsets = this.computeMessageOffsets(
-            messages,
-            this.renderWidth,
-        );
-        this.scrollOffset = Math.max(
-            0,
-            postOffsets[messageIndex] + innerOffset,
-        );
-    }
 
     /**
      * 统一将所有 ToolExecutionComponent 设置为 expanded 状态，
