@@ -38,10 +38,10 @@ export function renderCall(args: SubagentCallArgs, theme: Theme, ctx: ToolRender
   if (taskText) {
     text += "\n\n---Task---"
     if (ctx.expanded) {
-      text += `\n${theme.fg("dim", taskText.trim())}`;
+      text += `\n${theme.fg("muted", taskText.trim())}`;
     } else {
       const preview = taskText.length > 60 ? `${taskText.slice(0, 100)}\n...` : taskText;
-      text += `\n${theme.fg("dim", preview.trim())}`;
+      text += `\n${theme.fg("muted", preview.trim())}`;
     }
   }
   return new Text(text, 0, 0);
@@ -89,28 +89,28 @@ export function renderResult(
   if (options.expanded) {
     for (const item of displayItems) {
       if (item.type === "toolCall")
-        output += `\n${theme.fg("muted", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme))}`;
+        output += `\n${theme.fg("dim", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme))}`;
     }
     if (finalOutput) {
-      output += `\n${theme.fg("dim", finalOutput.trim())}`;
+      output += `\n${theme.fg("muted", finalOutput.trim())}`;
     }
   } else {
     const toolCalls = displayItems.filter(item => item.type === "toolCall").slice(-7);
     for (const item of toolCalls) {
-      output += `\n${theme.fg("muted", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme))}`;
+      output += `\n${theme.fg("dim", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme))}`;
     }
     if (finalOutput) {
       const truncated = finalOutput.length > 100
         ? "...\n" + finalOutput.slice(-100)
         : finalOutput;
-      output += `\n${theme.fg("dim", truncated.trim())}`;
+      output += `\n${theme.fg("muted", truncated.trim())}`;
     }
   }
 
   // Usage stats
   const usageStr = formatUsageStats(r.usage, r.model);
   if (usageStr) {
-    output += `\n\n${theme.fg("dim", usageStr)}`;
+    output += `\n\n${theme.fg("muted", usageStr)}`;
   }
 
   return new Text(output, 0, 0);
