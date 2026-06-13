@@ -376,7 +376,7 @@ export default function (pi: ExtensionAPI) {
     if (!component || !event.partialResult) return;
     component.updateResult(
       {
-        content: event.partialResult.content || [],
+        content: event.partialResult.content,
         details: event.partialResult.details,
         isError: false,
       },
@@ -391,7 +391,7 @@ export default function (pi: ExtensionAPI) {
     if (!component || !event.result) return;
     component.updateResult(
       {
-        content: event.result.content || [],
+        content: event.result.content,
         details: event.result.details,
         isError: event.isError,
       },
