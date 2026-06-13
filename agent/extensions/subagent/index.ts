@@ -4,10 +4,8 @@
  * Spawns a separate `pi` process for each subagent invocation,
  * giving it an isolated context window.
  *
- * Supports three modes:
- *   - Single: { agent: "name", task: "..." }
- *   - Parallel: { tasks: [{ agent: "name", task: "..." }, ...] }
- *   - Chain: { chain: [{ agent: "name", task: "... {previous} ..." }, ...] }
+ * Supports concurrent execution via `tasks` array.
+ * When a single task is given, it acts as a simple delegation.
  *
  * Uses JSON mode to capture structured output from subagents.
  */

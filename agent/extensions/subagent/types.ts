@@ -30,7 +30,6 @@ export interface SingleResult {
 }
 
 export interface SubagentDetails {
-  mode: "single" | "parallel" | "chain";
   projectAgentsDir: string | null;
   results: SingleResult[];
 }
