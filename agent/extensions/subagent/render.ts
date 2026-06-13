@@ -115,7 +115,7 @@ export function renderResult(
     }
     if (finalOutput) {
       const truncated = finalOutput.length > 100
-        ? "…" + finalOutput.slice(-100)
+        ? "..." + finalOutput.slice(-100)
         : finalOutput;
       container.addChild(
         new Text(theme.bg("toolSuccessBg", truncated), 0, 0),
