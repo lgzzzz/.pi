@@ -62,7 +62,7 @@ export function createSubagentToolDefinition(): ToolDefinition<typeof SubagentPa
         return {
           content: [{
             type: "text",
-            text: `No agent/task provided. Available agents:\n${available}`
+            text: `No agent/task provided. Available agents:\n${available.trim()}`
           }],
           details: {},
         };

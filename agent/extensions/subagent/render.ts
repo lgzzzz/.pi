@@ -28,19 +28,21 @@ interface SubagentCallArgs {
  * Render the subagent tool call before execution.
  */
 export function renderCall(args: SubagentCallArgs, theme: Theme, ctx: ToolRenderContext): Text {
-  const agentName = args.agent || "...";
-  const taskText = args.task || "...";
+  const agentName = args.agent;
+  const taskText = args.task;
 
-  let text =
-    theme.fg("toolTitle", theme.bold("subagent ")) +
-    theme.fg("accent", agentName);
-  text += "\n---Task---"
-  if (ctx.expanded) {
-    text += `\n${theme.fg("dim", taskText)}`;
-  } else {
-    const preview =
-      taskText.length > 60 ? `${taskText.slice(0, 100)}...` : taskText;
-    text += `\n${theme.fg("dim", preview)}`;
+  let text = theme.fg("toolTitle", theme.bold("subagent"))
+  if (agentName) {
+    text += theme.fg("accent", " " + agentName);
+  }
+  if (taskText) {
+    text += "\n\n---Task---"
+    if (ctx.expanded) {
+      text += `\n${theme.fg("dim", taskText.trim())}`;
+    } else {
+      const preview = taskText.length > 60 ? `${taskText.slice(0, 100)}...` : taskText;
+      text += `\n${theme.fg("dim", preview.trim())}`;
+    }
   }
   return new Text(text, 0, 0);
 }
@@ -71,14 +73,12 @@ export function renderResult(
   const icon = isError ? theme.fg("error", "✗") : theme.fg("success", "✓");
   const displayItems = getDisplayItems(r.messages);
   const finalOutput = getFinalOutput(r.messages);
-
   let output = "";
-
-  // Header
+  output += `\n---Output---`;
   if (options.isPartial) {
-    output += `Working...`;
+    output += theme.fg("dim", `\nWorking...`);
   } else {
-    output += `${icon}`;
+    output += theme.fg("dim", `\n${icon}`);
   }
   if (isError && r.stopReason) output += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
 
@@ -86,11 +86,6 @@ export function renderResult(
   if (isError && r.errorMessage) {
     output += `\n${theme.fg("error", `Error: ${r.errorMessage}`)}`;
   }
-
-  // Separator
-  output += `\n${theme.fg("muted", "---Output---")}`;
-
-  // No output case
   if (displayItems.length === 0 && !finalOutput) {
     output += `\n${theme.fg("muted", "(no output)")}`;
     return new Text(output, 0, 0);
@@ -114,7 +109,7 @@ export function renderResult(
       const truncated = finalOutput.length > 100
         ? "..." + finalOutput.slice(-100)
         : finalOutput;
-      output += `\n${theme.bg("toolSuccessBg", truncated)}`;
+      output += `\n${theme.bg("toolSuccessBg", truncated.trim())}`;
     }
   }
 

@@ -9,105 +9,114 @@ import {getAgentDir, parseFrontmatter} from "@earendil-works/pi-coding-agent";
 export type AgentScope = "user" | "project" | "both";
 
 export interface AgentConfig {
-    name: string;
-    description: string;
-    tools?: string[];
-    model?: string;
-    systemPrompt: string;
-    source: "user" | "project";
+  name: string;
+  description: string;
+  tools?: string[];
+  model?: string;
+  systemPrompt: string;
+  source: "user" | "project";
 }
 
 export interface AgentDiscoveryResult {
-    agents: AgentConfig[];
+  agents: AgentConfig[];
 }
 
 function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
-    const agents: AgentConfig[] = [];
+  const agents: AgentConfig[] = [];
 
-    if (!fs.existsSync(dir)) {
-        return agents;
-    }
-
-    let entries: fs.Dirent[];
-    try {
-        entries = fs.readdirSync(dir, {withFileTypes: true});
-    } catch {
-        return agents;
-    }
-
-    for (const entry of entries) {
-        if (!entry.name.endsWith(".md")) continue;
-        if (!entry.isFile() && !entry.isSymbolicLink()) continue;
-
-        const filePath = path.join(dir, entry.name);
-        let content: string;
-        try {
-            content = fs.readFileSync(filePath, "utf-8");
-        } catch {
-            continue;
-        }
-
-        const {frontmatter, body} = parseFrontmatter<Record<string, string>>(content);
-
-        if (!frontmatter.name || !frontmatter.description) {
-            continue;
-        }
-
-        const rawTools = frontmatter.tools;
-        const tools: string[] | undefined = Array.isArray(rawTools)
-            ? rawTools.map((t: unknown) => String(t).trim()).filter(Boolean)
-            : typeof rawTools === "string"
-              ? rawTools.split(",").map((t: string) => t.trim()).filter(Boolean)
-              : undefined;
-
-        agents.push({
-            name: frontmatter.name,
-            description: frontmatter.description,
-            tools: tools && tools.length > 0 ? tools : undefined,
-            model: frontmatter.model,
-            systemPrompt: body,
-            source,
-        });
-    }
-
+  if (!fs.existsSync(dir)) {
     return agents;
+  }
+
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return agents;
+  }
+
+  for (const entry of entries) {
+    if (!entry.name.endsWith(".md")) continue;
+    if (!entry.isFile() && !entry.isSymbolicLink()) continue;
+
+    const filePath = path.join(dir, entry.name);
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, "utf-8");
+    } catch {
+      continue;
+    }
+
+    const { frontmatter, body } = parseFrontmatter<Record<string, string>>(content);
+
+    if (!frontmatter.name || !frontmatter.description) {
+      continue;
+    }
+
+    const rawTools = frontmatter.tools;
+    const tools: string[] | undefined = Array.isArray(rawTools)
+      ? rawTools.map((t: unknown) => String(t).trim()).filter(Boolean)
+      : typeof rawTools === "string"
+        ? rawTools.split(",").map((t: string) => t.trim()).filter(Boolean)
+        : undefined;
+
+    agents.push({
+      name: frontmatter.name,
+      description: frontmatter.description,
+      tools: tools && tools.length > 0 ? tools : undefined,
+      model: frontmatter.model,
+      systemPrompt: body,
+      source,
+    });
+  }
+
+  return agents;
 }
 
 function isDirectory(p: string): boolean {
-    try {
-        return fs.statSync(p).isDirectory();
-    } catch {
-        return false;
-    }
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function findNearestProjectAgentsDir(cwd: string): string | null {
-    let currentDir = cwd;
-    while (true) {
-        const candidate = path.join(currentDir, ".pi", "agents");
-        if (isDirectory(candidate)) return candidate;
+  let currentDir = cwd;
+  while (true) {
+    const candidate = path.join(currentDir, ".pi", "agents");
+    if (isDirectory(candidate)) return candidate;
 
-        const parentDir = path.dirname(currentDir);
-        if (parentDir === currentDir) return null;
-        currentDir = parentDir;
-    }
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) return null;
+    currentDir = parentDir;
+  }
 }
 
 export function discoverAgents(cwd: string): AgentDiscoveryResult {
-    const userDir = path.join(getAgentDir(), "agents");
-    const projectAgentsDir = findNearestProjectAgentsDir(cwd);
+  const userDir = path.join(getAgentDir(), "agents");
+  const projectAgentsDir = findNearestProjectAgentsDir(cwd);
 
-    const agentMap = new Map<string, AgentConfig>();
-    const userAgents = loadAgentsFromDir(userDir, "user");
-    for (const agent of userAgents) agentMap.set(agent.name, agent);
-    if (projectAgentsDir) {
-        const projectAgents = loadAgentsFromDir(projectAgentsDir, "project");
-        for (const agent of projectAgents) agentMap.set(agent.name, agent);
-    }
-    return {agents: Array.from(agentMap.values())};
+  const agentMap = new Map<string, AgentConfig>();
+  const userAgents = loadAgentsFromDir(userDir, "user");
+  for (const agent of userAgents) agentMap.set(agent.name, agent);
+  if (projectAgentsDir) {
+    const projectAgents = loadAgentsFromDir(projectAgentsDir, "project");
+    for (const agent of projectAgents) agentMap.set(agent.name, agent);
+  }
+  return { agents: Array.from(agentMap.values()) };
 }
 
 export function formatAgentList(agents: AgentConfig[]): string {
-    if (agents.length === 0) return "none";
-    return agents.map((a) => `${a.name} : ${a.description}`).join(";\n")
+  if (agents.length === 0) return "none";
+  let text = "";
+  for (let i = 0; i < agents.length; i++) {
+    const a = agents[i]
+    if (i != agents.length - 1) {
+      text += `${a.name} : ${a.description};\n`
+    } else {
+      text += `${a.name} : ${a.description};`
+    }
+  }
+  return text;
 }

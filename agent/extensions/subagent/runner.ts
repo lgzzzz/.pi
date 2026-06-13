@@ -70,7 +70,7 @@ export async function runSingleAgent(
       task,
       exitCode: 1,
       messages: [],
-      stderr: `Unknown agent: "${agentName}". Available agents:\n${available}.`,
+      stderr: `Unknown agent: "${agentName}". Available agents:\n${available.trim()}.`,
       usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
     };
   }
