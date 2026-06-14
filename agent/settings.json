@@ -5,7 +5,7 @@
   "quietStartup": true,
   "hideThinkingBlock": false,
   "compaction": {
-    "enabled": false
+    "enabled": true
   },
   "defaultProvider": "deepseek",
   "defaultModel": "deepseek-v4-pro",
