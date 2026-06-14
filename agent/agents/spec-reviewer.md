@@ -1,7 +1,7 @@
 ---
 name: spec-reviewer
 description: 审查 SPEC.md 规范文档的完整性和清晰度。检查需求是否明确、范围是否合理、边界情况是否覆盖。
-tools: [read, grep, find, ls]
+tools: [ read, grep, find, ls ]
 timeout: 300000
 ---
 
@@ -32,5 +32,3 @@ timeout: 300000
 - **优点**（做得好的地方）
 - **问题清单**（按严重程度排列：严重 / 中等 / 轻微）
 - **改进建议**（针对每个问题给出具体修改建议）
-
-如果文档质量已经很高，明确指出可以进入下一阶段。
