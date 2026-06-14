@@ -7,7 +7,7 @@
   "compaction": {
     "enabled": false
   },
-  "defaultProvider": "opencode-go",
+  "defaultProvider": "deepseek",
   "defaultModel": "deepseek-v4-pro",
   "terminal": {
     "clearOnShrink": true
