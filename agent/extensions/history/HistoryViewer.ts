@@ -165,7 +165,6 @@ export class HistoryViewer {
    */
   private handleKeyboardNavigation(data: string): boolean {
     const maxScroll = this.computeMaxScroll();
-    const pageSize = this.renderHeight > 0 ? this.renderHeight : 1;
 
     let handled = false;
 
@@ -182,10 +181,10 @@ export class HistoryViewer {
       );
       handled = true;
     } else if (matchesKey(data, Key.left)) {
-      this.scrollOffset = Math.max(0, this.scrollOffset - pageSize >> 1);
+      this.scrollOffset = Math.max(0, this.scrollOffset - 6);
       handled = true;
     } else if (matchesKey(data, Key.right)) {
-      this.scrollOffset = Math.min(maxScroll, this.scrollOffset + pageSize >> 1);
+      this.scrollOffset = Math.min(maxScroll, this.scrollOffset + 6);
       handled = true;
     }
 
