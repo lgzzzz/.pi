@@ -24,7 +24,7 @@ export function formatUsageStats(
   if (usage.cacheWrite) parts.push(`W${formatTokens(usage.cacheWrite)}`);
   if (usage.input || usage.cacheRead) {
     const percent = usage.cacheRead / (usage.input + usage.cacheRead);
-    parts.push(`%${percent.toFixed(2)}`)
+    parts.push(`${(percent * 100).toFixed(2)}%`)
   }
   if (usage.input || usage.output || usage.cacheRead) {
     const costRMB =
