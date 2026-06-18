@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.79.3",
+  "lastChangelogVersion": "0.79.6",
   "defaultThinkingLevel": "xhigh",
   "showHardwareCursor": false,
   "quietStartup": true,
@@ -11,5 +11,6 @@
   "defaultModel": "deepseek-v4-pro",
   "terminal": {
     "clearOnShrink": true
-  }
+  },
+  "theme": "dark"
 }
