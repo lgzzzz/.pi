@@ -13,6 +13,35 @@ export function formatTokens(count: number): string {
   return `${(count / 1000000).toFixed(1)}M`;
 }
 
+/** 模型定价接口（每百万 tokens 价格，元） */
+interface ModelPricing {
+  inputUncached: number;
+  inputCached: number;
+  output: number;
+}
+
+/** 定价表 — 按模型 ID 查找 */
+const PRICING_MAP: Record<string, ModelPricing> = {
+  "deepseek-v4-pro": {
+    inputUncached: 2,    // 未命中缓存：2 元/百万 tokens
+    inputCached: 0.025,  // 命中缓存：0.025 元/百万 tokens
+    output: 6,           // 输出：6 元/百万 tokens
+  },
+  "deepseek-v4-flash": {
+    inputUncached: 1,    // 未命中缓存：1 元/百万 tokens
+    inputCached: 0.02,   // 命中缓存：0.02 元/百万 tokens
+    output: 2,           // 输出：2 元/百万 tokens
+  },
+};
+
+/** 默认回退定价（deepseek-v4-pro） */
+const DEFAULT_PRICING: ModelPricing = { inputUncached: 2, inputCached: 0.025, output: 6 };
+
+/** 根据模型 ID 获取定价 */
+function getPricing(modelId?: string): ModelPricing {
+  return PRICING_MAP[modelId ?? ""] ?? DEFAULT_PRICING;
+}
+
 export function formatUsageStats(
   usage: UsageStats,
   model?: string,
@@ -27,10 +56,11 @@ export function formatUsageStats(
     parts.push(`${(percent * 100).toFixed(2)}%`)
   }
   if (usage.input || usage.output || usage.cacheRead) {
+    const p = getPricing(model);
     const costRMB =
-      ((usage.input || 0) / 1_000_000) * 2 +
-      ((usage.cacheRead || 0) / 1_000_000) * 0.025 +
-      ((usage.output || 0) / 1_000_000) * 6;
+      ((usage.input || 0) / 1_000_000) * p.inputUncached +
+      ((usage.cacheRead || 0) / 1_000_000) * p.inputCached +
+      ((usage.output || 0) / 1_000_000) * p.output;
     parts.push(`¥${costRMB.toFixed(3)}`);
   }
   parts.push(`${formatTokens(usage.contextTokens)}/1.0M`);

@@ -13,12 +13,29 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 // 定价与费用计算
 // ---------------------------------------------------------------------------
 
-/** DeepSeek v4 pro 人民币定价（每百万 tokens） */
-const PRICING = {
-    inputUncached: 2,    // 未命中缓存：2 元/百万 tokens
-    inputCached: 0.025,  // 命中缓存：0.025 元/百万 tokens
-    output: 6,           // 输出：6 元/百万 tokens
-} as const;
+/** 模型定价接口（每百万 tokens 价格，元） */
+interface ModelPricing {
+    inputUncached: number;
+    inputCached: number;
+    output: number;
+}
+
+/** 定价表 — 按模型 ID 查找 */
+const PRICING_MAP: Record<string, ModelPricing> = {
+    "deepseek-v4-pro": {
+        inputUncached: 2,    // 未命中缓存：2 元/百万 tokens
+        inputCached: 0.025,  // 命中缓存：0.025 元/百万 tokens
+        output: 6,           // 输出：6 元/百万 tokens
+    },
+    "deepseek-v4-flash": {
+        inputUncached: 1,    // 未命中缓存：1 元/百万 tokens
+        inputCached: 0.02,   // 命中缓存：0.02 元/百万 tokens
+        output: 2,           // 输出：2 元/百万 tokens
+    },
+};
+
+/** 默认回退定价（deepseek-v4-pro） */
+const DEFAULT_PRICING: ModelPricing = { inputUncached: 2, inputCached: 0.025, output: 6 };
 
 /** 根据 token 数和定价计算费用 */
 function calcCost(tokens: number, pricePerMillion: number): number {
@@ -130,11 +147,12 @@ export function buildFooterLines(opts: FooterLinesOptions): string[] {
         statsParts.push(`${cacheHitRate.toFixed(1)}%`);
     }
 
-    // 费用（由 buildFooterLines 内部根据 token 数计算）
+    // 费用（由 buildFooterLines 内部根据 token 数计算，按模型选择定价）
+    const pricing = PRICING_MAP[opts.modelName] ?? DEFAULT_PRICING;
     const costRmb =
-        calcCost(opts.totalInput, PRICING.inputUncached) +
-        calcCost(opts.totalCacheRead, PRICING.inputCached) +
-        calcCost(opts.totalOutput, PRICING.output);
+        calcCost(opts.totalInput, pricing.inputUncached) +
+        calcCost(opts.totalCacheRead, pricing.inputCached) +
+        calcCost(opts.totalOutput, pricing.output);
     if (costRmb || opts.usingSubscription) {
         const sub = opts.usingSubscription ? " (sub)" : "";
         statsParts.push(`¥${costRmb.toFixed(3)}${sub}`);
