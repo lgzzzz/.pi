@@ -18,6 +18,7 @@ interface ModelPricing {
   inputUncached: number;
   inputCached: number;
   output: number;
+  cacheWrite: number;
 }
 
 /** 定价表 — 按模型 ID 查找（仅 DeepSeek V4 系列硬编码） */
@@ -26,16 +27,18 @@ const PRICING_MAP: Record<string, ModelPricing> = {
     inputUncached: 2,    // 未命中缓存：2 元/百万 tokens
     inputCached: 0.025,  // 命中缓存：0.025 元/百万 tokens
     output: 6,           // 输出：6 元/百万 tokens
+    cacheWrite: 0,       // 写入缓存
   },
   "deepseek-v4-flash": {
     inputUncached: 1,    // 未命中缓存：1 元/百万 tokens
     inputCached: 0.02,   // 命中缓存：0.02 元/百万 tokens
     output: 2,           // 输出：2 元/百万 tokens
+    cacheWrite: 0,       // 写入缓存
   },
 };
 
 /** 默认回退定价（deepseek-v4-pro） */
-const DEFAULT_PRICING: ModelPricing = { inputUncached: 2, inputCached: 0.025, output: 6 };
+const DEFAULT_PRICING: ModelPricing = { inputUncached: 2, inputCached: 0.025, output: 6, cacheWrite: 0 };
 
 /**
  * 解析定价：
@@ -55,6 +58,7 @@ function resolvePricing(
       inputUncached: costConfig.input,
       inputCached: costConfig.cacheRead,
       output: costConfig.output,
+      cacheWrite: costConfig.cacheWrite,
     };
   }
 
@@ -81,7 +85,8 @@ export function formatUsageStats(
     const cost =
       ((usage.input || 0) / 1_000_000) * p.inputUncached +
       ((usage.cacheRead || 0) / 1_000_000) * p.inputCached +
-      ((usage.output || 0) / 1_000_000) * p.output;
+      ((usage.output || 0) / 1_000_000) * p.output +
+      ((usage.cacheWrite || 0) / 1_000_000) * p.cacheWrite;
     const currency = isDeepSeekV4 ? "¥" : "$";
     parts.push(`${currency}${cost.toFixed(3)}`);
   }
