@@ -76,12 +76,14 @@ export function formatUsageStats(
     parts.push(`${(percent * 100).toFixed(2)}%`)
   }
   if (usage.input || usage.output || usage.cacheRead) {
+    const isDeepSeekV4 = model === "deepseek-v4-pro" || model === "deepseek-v4-flash";
     const p = resolvePricing(model ?? "", costConfig);
-    const costRMB =
+    const cost =
       ((usage.input || 0) / 1_000_000) * p.inputUncached +
       ((usage.cacheRead || 0) / 1_000_000) * p.inputCached +
       ((usage.output || 0) / 1_000_000) * p.output;
-    parts.push(`¥${costRMB.toFixed(3)}`);
+    const currency = isDeepSeekV4 ? "¥" : "$";
+    parts.push(`${currency}${cost.toFixed(3)}`);
   }
   parts.push(`${formatTokens(usage.contextTokens)}/1.0M`);
   if (model) parts.push(model);

@@ -174,14 +174,16 @@ export function buildFooterLines(opts: FooterLinesOptions): string[] {
     }
 
     // 费用（由 buildFooterLines 内部根据 token 数计算，按模型选择定价）
+    const isDeepSeekV4 = opts.modelName === "deepseek-v4-pro" || opts.modelName === "deepseek-v4-flash";
     const pricing = resolvePricing(opts.modelName, opts.modelCost);
-    const costRmb =
+    const cost =
         calcCost(opts.totalInput, pricing.inputUncached) +
         calcCost(opts.totalCacheRead, pricing.inputCached) +
         calcCost(opts.totalOutput, pricing.output);
-    if (costRmb || opts.usingSubscription) {
+    if (cost || opts.usingSubscription) {
+        const currency = isDeepSeekV4 ? "¥" : "$";
         const sub = opts.usingSubscription ? " (sub)" : "";
-        statsParts.push(`¥${costRmb.toFixed(3)}${sub}`);
+        statsParts.push(`${currency}${cost.toFixed(3)}${sub}`);
     }
 
     // 上下文使用量（实际 token 数）
