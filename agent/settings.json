@@ -7,8 +7,8 @@
   "compaction": {
     "enabled": true
   },
-  "defaultProvider": "deepseek",
-  "defaultModel": "deepseek-v4-pro",
+  "defaultProvider": "opencode-go",
+  "defaultModel": "deepseek-v4-flash",
   "terminal": {
     "clearOnShrink": true
   },
