@@ -12,9 +12,10 @@ export const SCROLL_LINE_STEP = 1;
  * 合并为单次写入以避免闪烁。
  */
 export const ALT_SCREEN_ENTER = [
-    "\x1b[?1049h", // 进入备用屏幕
-    "\x1b[?1006h", // 启用 SGR 鼠标模式
-    "\x1b[?25l",   // 隐藏光标
+  "\x1b[?1049h", // 进入备用屏幕
+  "\x1b[?1006h", // 启用 SGR 鼠标模式
+  "\x1b[?25l",   // 隐藏光标
+  "\x1b[2J\x1b[H",
 ].join("");
 
 /**
@@ -22,10 +23,10 @@ export const ALT_SCREEN_ENTER = [
  * 合并为单次写入以避免闪烁。
  */
 export const ALT_SCREEN_EXIT = [
-    "\x1b[?1006l",   // 禁用 SGR 鼠标模式
-    "\x1b[?25h",     // 显示光标
-    "\x1b[?1049l",   // 退出备用屏幕
-    "\x1b[2J\x1b[H", // 清除主屏幕并重置光标
+  "\x1b[?1049l",   // 进入主屏幕
+  "\x1b[?1006l",   // 禁用 SGR 鼠标模式
+  "\x1b[?25h",     // 显示光标
+  "\x1b[2J\x1b[H",
 ].join("");
 
 /** 使用 pi 原生 ToolExecutionComponent 进行富文本渲染的内置工具名称集合。 */

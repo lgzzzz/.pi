@@ -259,7 +259,7 @@ export default function (pi: ExtensionAPI) {
         overlayOptions: {
           width: "100%",
           maxHeight: "100%",
-          anchor: "center",
+          anchor: "top-center",
         },
       },
     );
