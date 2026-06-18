@@ -108,7 +108,7 @@ export function renderResult(
   }
 
   // Usage stats
-  const usageStr = formatUsageStats(r.usage, r.model);
+  const usageStr = formatUsageStats(r.usage, r.model, r.costConfig);
   if (usageStr) {
     output += `\n\n${theme.fg("muted", usageStr)}`;
   }

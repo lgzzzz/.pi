@@ -20,7 +20,7 @@ interface ModelPricing {
     output: number;
 }
 
-/** 定价表 — 按模型 ID 查找 */
+/** 定价表 — 按模型 ID 查找（仅 DeepSeek V4 系列硬编码） */
 const PRICING_MAP: Record<string, ModelPricing> = {
     "deepseek-v4-pro": {
         inputUncached: 2,    // 未命中缓存：2 元/百万 tokens
@@ -36,6 +36,30 @@ const PRICING_MAP: Record<string, ModelPricing> = {
 
 /** 默认回退定价（deepseek-v4-pro） */
 const DEFAULT_PRICING: ModelPricing = { inputUncached: 2, inputCached: 0.025, output: 6 };
+
+/**
+ * 解析定价：
+ * 1. DeepSeek V4 系列 → 用硬编码 PRICING_MAP
+ * 2. 其他模型且有 costConfig → 从模型配置读取
+ * 3. 否则 → 回退到 DEFAULT_PRICING
+ */
+function resolvePricing(
+    modelName: string,
+    modelCost?: { input: number; output: number; cacheRead: number; cacheWrite: number },
+): ModelPricing {
+    const hardcoded = PRICING_MAP[modelName];
+    if (hardcoded) return hardcoded;
+
+    if (modelCost && (modelCost.input > 0 || modelCost.output > 0)) {
+        return {
+            inputUncached: modelCost.input,
+            inputCached: modelCost.cacheRead,
+            output: modelCost.output,
+        };
+    }
+
+    return DEFAULT_PRICING;
+}
 
 /** 根据 token 数和定价计算费用 */
 function calcCost(tokens: number, pricePerMillion: number): number {
@@ -109,6 +133,8 @@ export interface FooterLinesOptions {
     // ── 模型 ──
     /** 模型 ID，如 "deepseek-v4-pro" */
     modelName: string;
+    /** 模型自身的 cost 定价（从 ctx.model.cost 读取，每百万 tokens），非 DeepSeek V4 系列使用 */
+    modelCost?: { input: number; output: number; cacheRead: number; cacheWrite: number };
     /** provider 名称，如 "opencode-go" */
     provider?: string;
     /** 模型是否支持 reasoning */
@@ -148,7 +174,7 @@ export function buildFooterLines(opts: FooterLinesOptions): string[] {
     }
 
     // 费用（由 buildFooterLines 内部根据 token 数计算，按模型选择定价）
-    const pricing = PRICING_MAP[opts.modelName] ?? DEFAULT_PRICING;
+    const pricing = resolvePricing(opts.modelName, opts.modelCost);
     const costRmb =
         calcCost(opts.totalInput, pricing.inputUncached) +
         calcCost(opts.totalCacheRead, pricing.inputCached) +

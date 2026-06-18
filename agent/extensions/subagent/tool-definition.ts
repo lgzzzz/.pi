@@ -77,6 +77,7 @@ export function createSubagentToolDefinition(): ToolDefinition<typeof SubagentPa
         signal,
         onUpdate,
       );
+      result.costConfig = ctx.model?.cost;
 
       const isError = result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
       if (isError) {

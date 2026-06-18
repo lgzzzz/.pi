@@ -78,6 +78,7 @@ export default function (pi: ExtensionAPI) {
                         contextTokens,
                         contextWindow,
                         modelName,
+                        modelCost: model?.cost,
                         provider,
                         modelReasoning,
                         thinkingLevel,

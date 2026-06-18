@@ -26,6 +26,8 @@ export interface SingleResult {
   model?: string;
   stopReason?: string;
   errorMessage?: string;
+  /** 模型的 cost 定价配置（从 ctx.model.cost 读取，每百万 tokens） */
+  costConfig?: { input: number; output: number; cacheRead: number; cacheWrite: number };
 }
 
 export interface SubagentDetail {

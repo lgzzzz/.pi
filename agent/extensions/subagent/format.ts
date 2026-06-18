@@ -20,7 +20,7 @@ interface ModelPricing {
   output: number;
 }
 
-/** 定价表 — 按模型 ID 查找 */
+/** 定价表 — 按模型 ID 查找（仅 DeepSeek V4 系列硬编码） */
 const PRICING_MAP: Record<string, ModelPricing> = {
   "deepseek-v4-pro": {
     inputUncached: 2,    // 未命中缓存：2 元/百万 tokens
@@ -37,14 +37,34 @@ const PRICING_MAP: Record<string, ModelPricing> = {
 /** 默认回退定价（deepseek-v4-pro） */
 const DEFAULT_PRICING: ModelPricing = { inputUncached: 2, inputCached: 0.025, output: 6 };
 
-/** 根据模型 ID 获取定价 */
-function getPricing(modelId?: string): ModelPricing {
-  return PRICING_MAP[modelId ?? ""] ?? DEFAULT_PRICING;
+/**
+ * 解析定价：
+ * 1. DeepSeek V4 系列 → 用硬编码 PRICING_MAP
+ * 2. 其他模型且有 costConfig → 从模型配置读取
+ * 3. 否则 → 回退到 DEFAULT_PRICING
+ */
+function resolvePricing(
+  modelId: string,
+  costConfig?: { input: number; output: number; cacheRead: number; cacheWrite: number },
+): ModelPricing {
+  const hardcoded = PRICING_MAP[modelId];
+  if (hardcoded) return hardcoded;
+
+  if (costConfig && (costConfig.input > 0 || costConfig.output > 0)) {
+    return {
+      inputUncached: costConfig.input,
+      inputCached: costConfig.cacheRead,
+      output: costConfig.output,
+    };
+  }
+
+  return DEFAULT_PRICING;
 }
 
 export function formatUsageStats(
   usage: UsageStats,
   model?: string,
+  costConfig?: { input: number; output: number; cacheRead: number; cacheWrite: number },
 ): string {
   const parts: string[] = [];
   if (usage.input) parts.push(`↑${formatTokens(usage.input)}`);
@@ -56,7 +76,7 @@ export function formatUsageStats(
     parts.push(`${(percent * 100).toFixed(2)}%`)
   }
   if (usage.input || usage.output || usage.cacheRead) {
-    const p = getPricing(model);
+    const p = resolvePricing(model ?? "", costConfig);
     const costRMB =
       ((usage.input || 0) / 1_000_000) * p.inputUncached +
       ((usage.cacheRead || 0) / 1_000_000) * p.inputCached +
