@@ -135,7 +135,6 @@ export class HistoryViewer {
         return;
       }
       this.spinnerFrame = (this.spinnerFrame + 1) % SPINNER_FRAMES.length;
-      this.tui?.requestRender();
     }, SPINNER_INTERVAL_MS);
   }
 
