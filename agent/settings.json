@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.79.7",
+  "lastChangelogVersion": "0.80.2",
   "defaultThinkingLevel": "xhigh",
   "showHardwareCursor": false,
   "quietStartup": true,
@@ -7,7 +7,7 @@
   "compaction": {
     "enabled": true
   },
-  "defaultProvider": "opencode-go",
+  "defaultProvider": "deepseek",
   "defaultModel": "deepseek-v4-flash",
   "terminal": {
     "clearOnShrink": true
